@@ -394,7 +394,7 @@ describe("Validation and atomic writes", () => {
       registeredHours: 1,
       instructor: null,
     };
-    expect((await store.courses.bulkUpsert([input, input])).created).toEqual([
+    expect((await store.courses.bulkUpsert([input])).created).toEqual([
       input.id,
     ]);
     const edited = await store.courses.update(
@@ -406,8 +406,8 @@ describe("Validation and atomic writes", () => {
     expect(await store.courses.get(input.id)).toEqual(edited);
     expect(
       (await store.courses.bulkUpsert([{ ...input, id: crypto.randomUUID() }]))
-        .skipped[0],
-    ).toMatchObject({ existingId: input.id, reason: "course-code" });
+        .rejected[0],
+    ).toMatchObject({ existingId: input.id, code: "DUPLICATE" });
     await store.courses.delete(input.id, { expectedRevision: 2 });
     await store.courses.bulkUpsert([input]);
     expect(await store.courses.get(input.id)).toBeUndefined();
@@ -431,12 +431,14 @@ describe("Validation and atomic writes", () => {
       academicYear: "2030/2031",
       semester: 1,
     };
-    await expect(
-      store.academicTerms.bulkUpsert([
-        valid,
-        { ...valid, id: crypto.randomUUID(), semester: 0 },
-      ]),
-    ).rejects.toMatchObject({ code: "VALIDATION" });
+    const result = await store.academicTerms.bulkUpsert([
+      valid,
+      { ...valid, id: crypto.randomUUID(), semester: 0 },
+    ]);
+    expect(result.committed).toBe(false);
+    expect(
+      result.rejected.some((outcome) => outcome.code === "VALIDATION"),
+    ).toBe(true);
     expect(await store.academicTerms.list()).toEqual([]);
   });
 
@@ -449,17 +451,19 @@ describe("Validation and atomic writes", () => {
       name: "Valid",
       registeredHours: 1,
     };
-    await expect(
-      store.courses.bulkUpsert([
-        base,
-        {
-          ...base,
-          id: crypto.randomUUID(),
-          code: "BAD",
-          academicTermId: crypto.randomUUID(),
-        },
-      ]),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const result = await store.courses.bulkUpsert([
+      base,
+      {
+        ...base,
+        id: crypto.randomUUID(),
+        code: "BAD",
+        academicTermId: crypto.randomUUID(),
+      },
+    ]);
+    expect(result.committed).toBe(false);
+    expect(
+      result.rejected.some((outcome) => outcome.code === "NOT_FOUND"),
+    ).toBe(true);
     expect(await store.courses.get(base.id)).toBeUndefined();
   });
 
@@ -682,21 +686,28 @@ describe("Safe deletion and migrations", () => {
       blob: new Blob(["migration bytes"]),
     });
     store.close();
-    // This v2 exists only in the test; production ships version 1.
+    // This v3 exists only in the test; production ships version 2.
     const upgraded = new Dexie(db.name);
     upgraded.version(1).stores(SCHEMA_V1);
+    upgraded.version(2).stores(SCHEMA_V1);
     upgraded
-      .version(2)
+      .version(3)
       .stores({ courses: "id, academicTermId, &[academicTermId+code], name" });
     try {
       await upgraded.open();
-      expect(await upgraded.table<Entities["courses"]>("courses").get(course.id)).toEqual(course);
-      expect(await upgraded.table<Entities["academicTerms"]>("academicTerms").get(term.id)).toEqual(term);
+      expect(
+        await upgraded.table<Entities["courses"]>("courses").get(course.id),
+      ).toEqual(course);
+      expect(
+        await upgraded
+          .table<Entities["academicTerms"]>("academicTerms")
+          .get(term.id),
+      ).toEqual(term);
       const migrated = await upgraded
         .table<Entities["materialFiles"]>("materialFiles")
         .get(file.id);
       expect(await migrated?.blob.text()).toBe("migration bytes");
-      expect(upgraded.verno).toBe(2);
+      expect(upgraded.verno).toBe(3);
     } finally {
       upgraded.close();
     }

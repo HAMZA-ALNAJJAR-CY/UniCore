@@ -4,6 +4,7 @@ export type DataErrorCode =
   | "RELATIONSHIP"
   | "DUPLICATE"
   | "CONFLICT"
+  | "IDENTITY_COLLISION"
   | "DEPENDENTS"
   | "QUOTA"
   | "UNAVAILABLE";

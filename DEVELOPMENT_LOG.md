@@ -27,3 +27,17 @@ The initial test run caught Dexie async transaction lifetime handling and a cust
 The timetable remains unapproved. Discrete Mathematics instructor OCR is wrong and must remain null until corrected; B203's asterisk is an unconfirmed source note. Arabic/RTL UI, Supabase, authentication, cloud sync, PWA/service worker and AI are outside this phase.
 
 Delivery: create the requested local Phase 1A commit after checks; do not push. Phase 1B has not been started.
+
+## 2026-10-15 — Phase 1A identity and bulk hardening
+
+Reviewed the implementation/tests at `7ec30c3` before editing. Preserved the Phase 0 shell, default restricted deletion, revision checks, tombstone retention and insert-if-absent behavior. No timetable data, screens, backup/restore, cloud sync, Supabase or PWA functionality was added. No project dependencies changed.
+
+Added canonical lowercase UUID handling for every primary/reference field, repository lookup/filter/edit/delete, and deletion confirmations. Caller input is copied. Schema version 2 preflights all legacy identities and course term/code ownership before atomically rekeying case variants. Collisions abort with IDENTITY_COLLISION and retain the v1 records; no record or Blob is silently merged, purged or overwritten. Collision-free migration preserves all content, timestamps, revisions and tombstones. Existing version 1 declarations remain intact.
+
+Bulk candidates now undergo structure/value/relationship checks even when their IDs already exist. Duplicate IDs within one entity batch, including letter-case variants, and conflicting course-code ownership reject. Results provide committed state and explicit inserted/skipped/rejected outcomes, with per-candidate reasons and canonical IDs. Existing-ID and tombstone skips do not write data. Every new write rolls back on any rejection or storage failure; rollback results never claim insertion. The created/skipped summary arrays remain available, but callers must check committed/outcomes. Validation failures now return rejected outcomes instead of throwing; malformed envelopes and legacy identity collisions can still throw.
+
+Added typed createRelated orchestration across the seven stores in one parent-first transaction, using caller-supplied stable IDs without changing existing user records. Added explicit revision-checked historical lecture detachment; notes and attachments survive subsequent default session deletion. Attachment lists with parent filters use lectureId/materialId indexes; unfiltered lists still scan.
+
+Executed final checks successfully: TypeScript, ESLint, all 76 tests in three files (the existing 36 plus 40 hardening cases), and production build. Tests include mixed-case IDs/foreign keys, all seven bulk entity types, duplicate and ownership conflicts, invalid existing candidates, preserved user-edited attachment bytes, migration collision rollback, multi-store validation/quota rollback, per-record outcomes, historical lecture preservation and indexed attachment queries. Tests use isolated fake-indexeddb; real-browser quota/eviction and cross-browser certification remain out of scope. Collision repair is deliberately explicit and not implemented as an automatic merge or repair UI.
+
+Delivery: local commit only, with no push. Phase 1B has not been started.

@@ -1,6 +1,7 @@
 import type { TransactionMode } from "dexie";
 import { UniCoreDatabase } from "./database";
-import { DataError, translateStorageError } from "./errors";
+import { DataError, translateStorageError, type DataErrorCode } from "./errors";
+import { canonicalUuid, normalizeIds } from "./identity";
 import type {
   BulkInput,
   CreateInput,
@@ -9,7 +10,7 @@ import type {
   ListFilter,
   UpdateInput,
 } from "./models";
-import { assertInput, invalid, uuid, validate } from "./validation";
+import { assertInput, invalid, validate } from "./validation";
 
 type DeleteOptions = {
   expectedRevision: number;
@@ -18,13 +19,33 @@ type DeleteOptions = {
 };
 type ReadOptions = { includeDeleted?: boolean };
 export type DeletionEntry = { kind: EntityName; id: string; revision: number };
+export interface RecordOutcome {
+  kind: EntityName;
+  index: number;
+  requestedId: string | null;
+  id: string | null;
+  status: "inserted" | "skipped" | "rejected";
+  reason: string;
+  code?: DataErrorCode;
+  existingId?: string;
+}
+export type RelatedBatch = { [K in EntityName]?: readonly BulkInput<K>[] };
 export interface BulkResult {
+  committed: boolean;
+  outcomes: RecordOutcome[];
   created: string[];
+  rejected: RecordOutcome[];
   skipped: {
     requestedId: string;
     existingId: string;
-    reason: "existing-id" | "course-code";
+    reason: "existing-id" | "tombstone";
   }[];
+}
+
+class RejectedBatch extends DataError {
+  constructor(readonly result: BulkResult) {
+    super("VALIDATION", "Batch rejected; every new write was rolled back.");
+  }
 }
 
 export class AcademicStore {
@@ -49,6 +70,44 @@ export class AcademicStore {
     this.database.close();
   }
 
+  detachLectureFromSchedule(id: string, expectedRevision: number) {
+    return this.lectures.update(
+      id,
+      { scheduleSessionId: null },
+      expectedRevision,
+    );
+  }
+
+  /** Typed insert-if-absent orchestration; executes all entity batches atomically. */
+  createRelated(batch: RelatedBatch): Promise<BulkResult> {
+    if (typeof batch !== "object" || batch === null || Array.isArray(batch))
+      invalid("Related batch must be an object of entity arrays.");
+    const order: EntityName[] = [
+      "academicTerms",
+      "courses",
+      "scheduleSessions",
+      "lectures",
+      "materials",
+      "lectureFiles",
+      "materialFiles",
+    ];
+    for (const key of Object.keys(batch)) {
+      if (!order.includes(key as EntityName))
+        invalid(`Unsupported entity batch: ${key}`);
+      if (
+        batch[key as EntityName] !== undefined &&
+        !Array.isArray(batch[key as EntityName])
+      )
+        invalid(`Entity batch ${key} must be an array.`);
+    }
+    return this.executeBatch(async (result) => {
+      for (const kind of order) {
+        const inputs = batch[kind];
+        if (inputs) await this.processBulk(kind, inputs, result);
+      }
+    }, batch);
+  }
+
   private async run<T>(
     mode: TransactionMode,
     operation: () => Promise<T>,
@@ -70,8 +129,7 @@ export class AcademicStore {
     kind: K,
     id: string,
   ): Promise<Entities[K]> {
-    uuid(id);
-    const record = await this.database.records(kind).get(id);
+    const record = await this.database.records(kind).get(canonicalUuid(id));
     if (!record || record.deletedAt !== null)
       throw new DataError(
         "NOT_FOUND",
@@ -94,6 +152,7 @@ export class AcademicStore {
     kind: K,
     record: Entities[K],
   ): Entities[K] {
+    record = normalizeIds(kind, record);
     validate(kind, record);
     if (kind === "courses") {
       const course = record as Entities["courses"];
@@ -217,7 +276,7 @@ export class AcademicStore {
     id: string,
   ) {
     assertInput(kind, input);
-    uuid(id);
+    id = canonicalUuid(id);
     const timestamp = Date.now();
     // Metadata is generated only here; caller fields have already been whitelisted.
     const record = this.prepare(kind, {
@@ -239,6 +298,7 @@ export class AcademicStore {
     id: string,
     collected = new Map<string, DeletionEntry>(),
   ): Promise<DeletionEntry[]> {
+    id = canonicalUuid(id);
     const key = `${kind}:${id}`;
     if (collected.has(key)) return [...collected.values()];
     const current = await this.active(kind, id);
@@ -279,17 +339,30 @@ export class AcademicStore {
         this.run("rw", () => this.insert(kind, input, crypto.randomUUID())),
       get: (id: string, options: ReadOptions = {}) =>
         this.run("r", async () => {
-          uuid(id);
-          const record = await this.database.records(kind).get(id);
+          const record = await this.database
+            .records(kind)
+            .get(canonicalUuid(id));
           return record && (options.includeDeleted || record.deletedAt === null)
             ? record
             : undefined;
         }),
       list: (filter: ListFilter<K> = {}, options: ReadOptions = {}) =>
         this.run("r", async () => {
-          // Exact filters are intentionally simple; indexed relationship queries are
-          // used internally. No query-builder abstraction is needed in Phase 1A.
-          const records = await this.database.records(kind).toArray();
+          filter = normalizeIds(kind, filter);
+          const table = this.database.records(kind);
+          const parentField =
+            kind === "lectureFiles"
+              ? "lectureId"
+              : kind === "materialFiles"
+                ? "materialId"
+                : undefined;
+          const parentId = parentField
+            ? filter[parentField as keyof typeof filter]
+            : undefined;
+          const records =
+            parentField && typeof parentId === "string"
+              ? await table.where(parentField).equals(parentId).toArray()
+              : await table.toArray();
           return records.filter(
             (record) =>
               (options.includeDeleted || record.deletedAt === null) &&
@@ -300,6 +373,7 @@ export class AcademicStore {
         }),
       update: (id: string, patch: UpdateInput<K>, expectedRevision: number) =>
         this.run("rw", async () => {
+          id = canonicalUuid(id);
           assertInput(kind, patch);
           const current = await this.active(kind, id);
           this.revision(current.revision, expectedRevision);
@@ -322,6 +396,7 @@ export class AcademicStore {
         }),
       delete: (id: string, options: DeleteOptions) =>
         this.run("rw", async () => {
+          id = canonicalUuid(id);
           const current = await this.active(kind, id);
           this.revision(current.revision, options.expectedRevision);
           const graph = await this.deletionGraph(kind, id);
@@ -331,7 +406,10 @@ export class AcademicStore {
               "Related records exist. Review the deletion preview and explicitly request cascade to soft-delete them together.",
             );
           if (graph.length > 1) {
-            const confirmation = options.confirmation;
+            const confirmation = options.confirmation?.map((entry) => ({
+              ...entry,
+              id: canonicalUuid(entry.id),
+            }));
             if (
               !confirmation ||
               confirmation.length !== graph.length ||
@@ -369,46 +447,175 @@ export class AcademicStore {
           return this.deletionGraph(kind, id);
         }),
       /** Insert missing stable IDs only; existing records are reported, never overwritten. */
-      bulkUpsert: (inputs: readonly BulkInput<K>[]): Promise<BulkResult> =>
-        this.run("rw", async () => {
-          const result: BulkResult = { created: [], skipped: [] };
-          for (const entry of inputs) {
-            const { id, ...data } = entry;
-            uuid(id);
-            assertInput(kind, data);
-            const existing = await this.database.records(kind).get(id);
-            if (existing) {
-              result.skipped.push({
-                requestedId: id,
-                existingId: id,
-                reason: "existing-id",
-              });
-              continue;
-            }
-            // Preparing validates before the natural-key lookup. A different ID
-            // using the same course key is reported rather than merged by name.
-            const record = this.prepare(kind, {
-              ...data,
-              id,
-              createdAt: 0,
-              updatedAt: 0,
-              deletedAt: null,
-              revision: 1,
-            } as Entities[K]);
-            const owner = await this.codeOwner(kind, record);
-            if (owner) {
-              result.skipped.push({
-                requestedId: id,
-                existingId: owner.id,
-                reason: "course-code",
-              });
-              continue;
-            }
-            await this.insert(kind, data as CreateInput<K>, id);
-            result.created.push(id);
-          }
-          return result;
-        }),
+      bulkUpsert: (inputs: readonly BulkInput<K>[]): Promise<BulkResult> => {
+        if (!Array.isArray(inputs))
+          invalid("Bulk candidates must be an array.");
+        return this.executeBatch(
+          (result) => this.processBulk(kind, inputs, result),
+          { [kind]: inputs } as RelatedBatch,
+        );
+      },
     };
+  }
+
+  private async executeBatch(
+    operation: (result: BulkResult) => Promise<void>,
+    batch: RelatedBatch,
+  ): Promise<BulkResult> {
+    const result: BulkResult = {
+      committed: false,
+      outcomes: [],
+      created: [],
+      skipped: [],
+      rejected: [],
+    };
+    try {
+      return await this.run("rw", async () => {
+        await operation(result);
+        if (result.outcomes.some((outcome) => outcome.status === "rejected")) {
+          for (const outcome of result.outcomes) {
+            if (outcome.status === "inserted") {
+              outcome.status = "rejected";
+              outcome.code = "CONFLICT";
+              outcome.reason =
+                "Batch rolled back because another candidate was rejected.";
+            }
+          }
+          result.created = [];
+          result.rejected = result.outcomes.filter(
+            (outcome) => outcome.status === "rejected",
+          );
+          throw new RejectedBatch(result);
+        }
+        result.committed = true;
+        return result;
+      });
+    } catch (error) {
+      if (error instanceof RejectedBatch) return error.result;
+      // Legacy migration collisions require explicit repair, never a silent merge.
+      if (!(error instanceof DataError) || error.code === "IDENTITY_COLLISION")
+        throw error;
+      result.committed = false;
+      result.created = [];
+      for (const kind of Object.keys(batch) as EntityName[]) {
+        for (const [index, entry] of (batch[kind] ?? []).entries()) {
+          let outcome = result.outcomes.find(
+            (item) => item.kind === kind && item.index === index,
+          );
+          if (!outcome) {
+            let id: string | null = null;
+            try {
+              id = canonicalUuid(entry?.id);
+            } catch {
+              /* Preserve invalid IDs in requestedId only. */
+            }
+            outcome = {
+              kind,
+              index,
+              requestedId: typeof entry?.id === "string" ? entry.id : null,
+              id,
+              status: "rejected",
+              reason: "",
+            };
+            result.outcomes.push(outcome);
+          }
+          if (outcome.status !== "skipped") {
+            outcome.status = "rejected";
+            outcome.code = error.code;
+            outcome.reason = `Operation failed; all new writes were rolled back. ${error.message}`;
+          }
+        }
+      }
+      result.rejected = result.outcomes.filter(
+        (outcome) => outcome.status === "rejected",
+      );
+      return result;
+    }
+  }
+
+  private async processBulk<K extends EntityName>(
+    kind: K,
+    inputs: readonly BulkInput<K>[],
+    result: BulkResult,
+  ) {
+    if (!Array.isArray(inputs)) invalid("Bulk candidates must be an array.");
+    const counts = new Map<string, number>();
+    for (const entry of inputs) {
+      try {
+        const id = canonicalUuid(entry?.id);
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      } catch {
+        /* Invalid IDs are reported individually below. */
+      }
+    }
+    for (const [index, entry] of inputs.entries()) {
+      const outcome: RecordOutcome = {
+        kind,
+        index,
+        requestedId: typeof entry?.id === "string" ? entry.id : null,
+        id: null,
+        status: "rejected",
+        reason: "Candidate has not been validated.",
+      };
+      result.outcomes.push(outcome);
+      try {
+        if (typeof entry !== "object" || entry === null || Array.isArray(entry))
+          invalid("Each bulk candidate must be a record object.");
+        const { id: suppliedId, ...data } = entry;
+        assertInput(kind, data);
+        const id = canonicalUuid(suppliedId);
+        outcome.id = id;
+        if (counts.get(id)! > 1)
+          throw new DataError(
+            "DUPLICATE",
+            "Duplicate UUID in this entity batch (including case variants); all occurrences are rejected.",
+          );
+        const record = this.prepare(kind, {
+          ...data,
+          id,
+          createdAt: 0,
+          updatedAt: 0,
+          deletedAt: null,
+          revision: 1,
+        } as Entities[K]);
+        // Validate even candidates for existing IDs: no invalid FK is silently skipped.
+        await this.relationships(kind, record);
+        const owner = await this.codeOwner(kind, record);
+        if (owner && owner.id !== id) {
+          outcome.existingId = owner.id;
+          throw new DataError(
+            "DUPLICATE",
+            "Course code is owned by a different UUID in this term (including tombstones). Resolve ownership explicitly; no identities were merged.",
+          );
+        }
+        const existing = await this.database.records(kind).get(id);
+        if (existing) {
+          outcome.status = "skipped";
+          outcome.existingId = existing.id;
+          const reason =
+            existing.deletedAt === null ? "existing-id" : "tombstone";
+          outcome.reason =
+            reason === "tombstone"
+              ? "Existing tombstone retained; this operation does not restore records."
+              : "Existing record and user edits retained; incoming values were not applied.";
+          result.skipped.push({
+            requestedId: suppliedId,
+            existingId: id,
+            reason,
+          });
+        } else {
+          await this.insert(kind, data as CreateInput<K>, id);
+          outcome.status = "inserted";
+          outcome.reason =
+            "New validated record inserted with the supplied canonical UUID.";
+          result.created.push(id);
+        }
+      } catch (error) {
+        if (!(error instanceof DataError)) throw error;
+        outcome.status = "rejected";
+        outcome.code = error.code;
+        outcome.reason = error.message;
+      }
+    }
   }
 }

@@ -1,5 +1,6 @@
 import type { Entities, EntityName } from "./models";
 import { DataError } from "./errors";
+import { canonicalUuid } from "./identity";
 
 const fields: Record<EntityName, readonly string[]> = {
   academicTerms: ["name", "academicYear", "semester", "startDate", "endDate"],
@@ -42,13 +43,7 @@ export function invalid(message: string): never {
 }
 
 export function uuid(value: unknown): asserts value is string {
-  if (
-    typeof value !== "string" ||
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      value,
-    )
-  )
-    invalid("A stable UUID is required.");
+  canonicalUuid(value);
 }
 
 export function assertInput(kind: EntityName, value: unknown) {

@@ -9,4 +9,9 @@ export function createAcademicStore(name = "UniCore") {
 export { DataError } from "./errors";
 export type { DataErrorCode } from "./errors";
 export type * from "./models";
-export type { BulkResult, DeletionEntry } from "./store";
+export type {
+  BulkResult,
+  DeletionEntry,
+  RecordOutcome,
+  RelatedBatch,
+} from "./store";

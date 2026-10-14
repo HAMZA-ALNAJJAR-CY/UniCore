@@ -17,7 +17,8 @@ UniCore is a university management application with an offline-first PWA vision.
 
 - Seven normalized Dexie/IndexedDB stores for terms, courses, weekly sessions, actual lectures, materials, and separate lecture/material Blob attachments.
 - Typed CRUD/filter operations, relationship validation, transactional writes, stable UUIDs, timestamps, tombstones, and stale-edit rejection using revisions.
-- Version 1 schema, reviewed cascade deletion, and idempotent insert-if-absent bulk operations that preserve user corrections.
+- Version 2 schema with collision-safe UUID canonicalization, reviewed cascade deletion, and validated insert-if-absent bulk operations that preserve user corrections.
+- Explicit per-candidate outcomes and atomic `createRelated` operations across stores; historical lectures can be explicitly detached from a session without losing notes or files.
 - No timetable seeds or imports. The Phase 0 shell does not access the database yet.
 
 Developers use `createAcademicStore()` from `src/data`, never direct Dexie tables. See DATABASE.md for contracts and migration rules.
