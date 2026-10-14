@@ -450,6 +450,164 @@ main:focus {
     min-height: 360px;
   }
 }
+
+/* Timetable management uses stacked daily agendas rather than a wide time grid. */
+.management-toolbar,
+.management-actions,
+.managed-course > header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.management-toolbar {
+  justify-content: space-between;
+  margin-block: 20px;
+}
+.management-toolbar > .review-field {
+  flex: 1 1 240px;
+  max-width: 400px;
+}
+.management-actions {
+  margin-block: 12px;
+}
+.management-editor {
+  border-color: var(--color-primary);
+  margin-block: 24px;
+}
+.management-editor h2 {
+  font-size: 20px;
+  font-weight: 650;
+}
+.timetable-management fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.timetable-management button[aria-pressed="true"] {
+  background: #513582;
+  border-color: #c4a7ff;
+}
+.timetable-management :is(button, a, p, h2, strong) {
+  overflow-wrap: anywhere;
+}
+.management-success {
+  padding: 16px;
+  border: 1px solid #44786b;
+  border-radius: 10px;
+  color: #abebd8;
+  background: #122823;
+}
+.managed-course > header {
+  justify-content: space-between;
+}
+.managed-course h2 {
+  font-size: 20px;
+  font-weight: 650;
+  margin-block-end: 6px;
+}
+.course-code {
+  color: #c4b5fd;
+  font-size: 13px;
+}
+.course-details {
+  color: var(--color-muted);
+  font-size: 14px;
+  margin-block: 16px;
+}
+.managed-sessions {
+  display: grid;
+  gap: 10px;
+  margin-block: 16px;
+  padding: 0;
+  list-style: none;
+}
+.managed-session {
+  --course-accent: #b79aff;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  background: var(--color-background);
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--course-accent);
+  border-radius: 8px;
+  min-width: 0;
+}
+.managed-session[data-course-color="1"] {
+  --course-accent: #67e8f9;
+}
+.managed-session[data-course-color="2"] {
+  --course-accent: #f4be80;
+}
+.managed-session[data-course-color="3"] {
+  --course-accent: #88d8b4;
+}
+.managed-session[data-course-color="4"] {
+  --course-accent: #eda5cf;
+}
+.managed-session strong {
+  color: var(--course-accent);
+  display: block;
+  margin-block-end: 8px;
+}
+.managed-session p {
+  margin-block: 4px;
+  font-size: 14px;
+}
+.managed-session .management-actions {
+  margin: 0;
+}
+.session-mode {
+  font-size: 12px;
+  color: #d1bfff;
+}
+.session-mode[data-mode="online"] {
+  color: #67e8f9;
+}
+.weekly-agenda {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px;
+}
+.agenda-day {
+  min-width: 0;
+  padding: 18px;
+  background: var(--color-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.agenda-day h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+@media (max-width: 900px) {
+  .weekly-agenda {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 480px) {
+  .timetable-management .management-toolbar {
+    align-items: stretch;
+  }
+  .timetable-management .management-toolbar > .review-field {
+    flex-basis: 100%;
+  }
+  .timetable-management .management-actions {
+    gap: 8px;
+  }
+  .timetable-management button {
+    padding-inline: 12px;
+    font-size: 13px;
+  }
+  .managed-session {
+    padding: 12px;
+  }
+}
 @media (max-width: 360px) {
   .workspace-grid {
     grid-template-columns: 1fr;

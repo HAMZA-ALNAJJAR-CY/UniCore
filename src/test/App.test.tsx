@@ -37,9 +37,10 @@ describe("Phase 0 shell", () => {
       expect(
         screen.getByRole("heading", { level: 1, name: label }),
       ).toBeInTheDocument();
-      expect(
-        screen.getByText("هذه المساحة مخططة لمرحلة لاحقة."),
-      ).toBeInTheDocument();
+      if (label !== "المقررات")
+        expect(
+          screen.getByText("هذه المساحة مخططة لمرحلة لاحقة."),
+        ).toBeInTheDocument();
       for (const nav of screen.getAllByRole("navigation")) {
         expect(within(nav).getByRole("link", { name: label })).toHaveAttribute(
           "aria-current",

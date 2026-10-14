@@ -1,4 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { timetableText } from "../features/timetable/messages";
 import { CheckCircle2, FileCheck2, Plus, Trash2 } from "lucide-react";
 import {
   createAcademicStore,
@@ -342,6 +344,9 @@ export function TimetableImport({
           <CheckCircle2 size={40} aria-hidden="true" />
           <h2>حُفظت المراجعة محلياً</h2>
           <p>{success}</p>
+          <Link className="button-link" to="/courses">
+            {timetableText.coursesView}
+          </Link>
           <button
             onClick={() => {
               setSuccess("");

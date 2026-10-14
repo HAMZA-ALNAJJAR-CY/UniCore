@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     pool: "threads",
+    // Bound memory use so the expanded DOM suite starts reliably on Windows.
+    maxWorkers: 2,
     setupFiles: ["./src/test/setup.ts"],
   },
 });

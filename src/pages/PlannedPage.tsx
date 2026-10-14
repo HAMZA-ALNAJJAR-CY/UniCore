@@ -1,17 +1,8 @@
-import { BookOpen, CalendarDays, Files, NotebookPen } from "lucide-react";
+import { CalendarDays, Files, NotebookPen } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
-import { Link } from "react-router-dom";
 
 const pages = {
-  courses: {
-    title: "المقررات",
-    description: "مساحة منظمة لكل مقرر.",
-    icon: BookOpen,
-    emptyTitle: "إدارة المقررات مخططة",
-    details:
-      "يمكنك الآن مراجعة واستيراد الجدول محلياً. عرض المقررات وإدارتها هنا مخططان لمرحلة لاحقة.",
-  },
   calendar: {
     title: "التقويم",
     description: "نظرة منظمة على الفصل الدراسي.",
@@ -47,11 +38,6 @@ export function PlannedPage({ kind }: { kind: keyof typeof pages }) {
         title={page.emptyTitle}
         description={page.details}
       />
-      {kind === "courses" && (
-        <Link className="button-link import-entry" to="/courses/import">
-          مراجعة واستيراد الجدول
-        </Link>
-      )}
     </>
   );
 }

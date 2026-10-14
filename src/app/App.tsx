@@ -14,6 +14,7 @@ import { PlannedPage } from "../pages/PlannedPage";
 import { NotFound } from "../pages/NotFound";
 import { ToastProvider } from "../components/ToastProvider";
 import { TimetableImport } from "../pages/TimetableImport";
+import { Courses } from "../pages/Courses";
 
 function Navigation({ mobile = false }: { mobile?: boolean }) {
   return (
@@ -96,7 +97,7 @@ export function App() {
       <Routes>
         <Route element={<Shell />}>
           <Route index element={<Dashboard />} />
-          <Route path="courses" element={<PlannedPage kind="courses" />} />
+          <Route path="courses" element={<Courses />} />
           <Route path="courses/import" element={<TimetableImport />} />
           <Route path="calendar" element={<PlannedPage kind="calendar" />} />
           <Route path="lectures" element={<PlannedPage kind="lectures" />} />

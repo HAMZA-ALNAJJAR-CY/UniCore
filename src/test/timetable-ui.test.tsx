@@ -31,15 +31,13 @@ function mockStore() {
       },
     }),
   );
-  const saveTimetable = vi
-    .fn()
-    .mockResolvedValue({
-      committed: true,
-      outcomes: [],
-      rejected: [],
-      created: ["saved"],
-      skipped: [],
-    });
+  const saveTimetable = vi.fn().mockResolvedValue({
+    committed: true,
+    outcomes: [],
+    rejected: [],
+    created: ["saved"],
+    skipped: [],
+  });
   const store = {
     academicTerms: { list: vi.fn().mockResolvedValue([]) },
     reviewTimetable,
@@ -49,7 +47,11 @@ function mockStore() {
 }
 async function mount() {
   const mocked = mockStore();
-  render(<TimetableImport store={mocked.store} />);
+  render(
+    <MemoryRouter>
+      <TimetableImport store={mocked.store} />
+    </MemoryRouter>,
+  );
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "التالي" })).toBeEnabled(),
   );

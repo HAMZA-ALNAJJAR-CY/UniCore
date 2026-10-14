@@ -12,6 +12,7 @@ import type {
 } from "./models";
 import { assertInput, invalid, validate } from "./validation";
 import { buildTimetableReview } from "./timetable-review";
+import { overlappingSessions } from "../features/timetable/schedule";
 import type {
   ImportMapping,
   TimetableDraft,
@@ -74,6 +75,143 @@ export class AcademicStore {
   }
   close() {
     this.database.close();
+  }
+
+  /** Consistent management read, without seeding or fetching attachment bytes. */
+  getTimetable(termId?: string) {
+    return this.run("r", async () => {
+      const terms = (await this.database.records("academicTerms").toArray())
+        .filter((row) => row.deletedAt === null)
+        .sort(
+          (a, b) =>
+            b.academicYear.localeCompare(a.academicYear) ||
+            b.semester - a.semester ||
+            a.id.localeCompare(b.id),
+        );
+      const selectedId = termId ? canonicalUuid(termId) : terms[0]?.id;
+      if (selectedId) await this.active("academicTerms", selectedId);
+      const courses = selectedId
+        ? (
+            await this.database
+              .records("courses")
+              .where("academicTermId")
+              .equals(selectedId)
+              .toArray()
+          ).filter((row) => row.deletedAt === null)
+        : [];
+      const sessions = selectedId
+        ? (
+            await this.database
+              .records("scheduleSessions")
+              .where("academicTermId")
+              .equals(selectedId)
+              .toArray()
+          ).filter((row) => row.deletedAt === null)
+        : [];
+      return { terms, termId: selectedId, courses, sessions };
+    });
+  }
+
+  /** Management-only write: exact current overlap IDs/revisions must be acknowledged.
+   * Existing importer/bulk contracts remain unchanged. All checks and the write share a transaction.
+   */
+  saveManagedSession(
+    input: CreateInput<"scheduleSessions">,
+    editing?: { id: string; revision: number },
+    confirmedOverlaps: readonly { id: string; revision: number }[] = [],
+  ) {
+    return this.run("rw", async () => {
+      assertInput("scheduleSessions", input);
+      const id = editing ? canonicalUuid(editing.id) : crypto.randomUUID();
+      const candidate = this.prepare("scheduleSessions", {
+        ...input,
+        id,
+        createdAt: 0,
+        updatedAt: 0,
+        deletedAt: null,
+        revision: 1,
+      });
+      await this.relationships("scheduleSessions", candidate);
+      if (editing) {
+        const existing = await this.active("scheduleSessions", id);
+        this.revision(existing.revision, editing.revision);
+        if (
+          existing.courseId !== candidate.courseId ||
+          existing.academicTermId !== candidate.academicTermId
+        )
+          throw new DataError(
+            "RELATIONSHIP",
+            "Management edits cannot reassign a session to a different course or term.",
+          );
+      }
+      const sessions = (
+        await this.database
+          .records("scheduleSessions")
+          .where("academicTermId")
+          .equals(candidate.academicTermId)
+          .toArray()
+      ).filter((row) => row.deletedAt === null);
+      if (
+        sessions.some(
+          (row) =>
+            row.id !== id &&
+            row.courseId === candidate.courseId &&
+            row.dayOfWeek === candidate.dayOfWeek &&
+            row.startTime === candidate.startTime &&
+            row.endTime === candidate.endTime,
+        )
+      )
+        throw new DataError(
+          "DUPLICATE",
+          "An identical weekly session already exists.",
+        );
+      const overlaps = overlappingSessions(candidate, sessions, id);
+      const confirmations = confirmedOverlaps.map((row) => ({
+        ...row,
+        id: canonicalUuid(row.id),
+      }));
+      if (
+        overlaps.length !== confirmations.length ||
+        overlaps.some(
+          (row) =>
+            !confirmations.some(
+              (other) => other.id === row.id && other.revision === row.revision,
+            ),
+        )
+      )
+        throw new DataError(
+          "CONFLICT",
+          "Review and explicitly acknowledge the current overlapping sessions before saving.",
+        );
+      return editing
+        ? this.scheduleSessions.update(id, input, editing.revision)
+        : this.insert("scheduleSessions", input, id);
+    });
+  }
+
+  /** Only weekly sessions may accompany a managed course deletion. Never cascade academic history. */
+  deleteManagedCourse(
+    id: string,
+    expectedRevision: number,
+    confirmation: readonly DeletionEntry[],
+  ) {
+    return this.run("rw", async () => {
+      const graph = await this.deletionGraph("courses", id);
+      if (
+        graph.some(
+          (row) => row.kind !== "courses" && row.kind !== "scheduleSessions",
+        )
+      )
+        throw new DataError(
+          "DEPENDENTS",
+          "Historical lectures or materials prevent timetable course deletion.",
+        );
+      return this.courses.delete(id, {
+        expectedRevision,
+        cascade: true,
+        confirmation,
+      });
+    });
   }
 
   reviewTimetable(draft: TimetableDraft): Promise<TimetableReview> {

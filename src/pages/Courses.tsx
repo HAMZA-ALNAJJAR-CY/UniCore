@@ -1,0 +1,759 @@
+import { useEffect, useId, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  createAcademicStore,
+  DataError,
+  type Course,
+  type ScheduleSession,
+  type CreateInput,
+  type DeletionEntry,
+} from "../data";
+import { timetableText as t } from "../features/timetable/messages";
+import { overlappingSessions, validSlot } from "../features/timetable/schedule";
+import { PageHeader } from "../components/PageHeader";
+
+const defaultStore = createAcademicStore();
+type Store = ReturnType<typeof createAcademicStore>;
+type Snapshot = Awaited<ReturnType<Store["getTimetable"]>>;
+const dayOrder = [7, 1, 2, 3, 4, 5, 6];
+const ordered = (rows: ScheduleSession[]) =>
+  [...rows].sort(
+    (a, b) =>
+      dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek) ||
+      a.startTime.localeCompare(b.startTime) ||
+      a.id.localeCompare(b.id),
+  );
+const nullable = (value: string) => (value.trim() ? value : null);
+function errorText(error: unknown, session = false) {
+  if (!(error instanceof DataError)) return t.unavailable;
+  return {
+    CONFLICT: t.conflict,
+    DUPLICATE: session ? t.duplicateSession : t.duplicate,
+    DEPENDENTS: t.protected,
+    VALIDATION: t.validation,
+    RELATIONSHIP: t.validation,
+    NOT_FOUND: t.conflict,
+    QUOTA: t.quota,
+    UNAVAILABLE: t.unavailable,
+    IDENTITY_COLLISION: t.collision,
+  }[error.code];
+}
+function Field({
+  label,
+  value,
+  onChange,
+  ltr = false,
+  type = "text",
+  required = false,
+}: {
+  label: string;
+  value: string | number;
+  onChange: (value: string) => void;
+  ltr?: boolean;
+  type?: "text" | "number";
+  required?: boolean;
+}) {
+  const id = useId();
+  return (
+    <label className="review-field" htmlFor={id}>
+      <span>{label}</span>
+      <input
+        id={id}
+        type={type}
+        required={required}
+        value={value}
+        dir={ltr ? "ltr" : undefined}
+        onChange={(event) => onChange(event.target.value)}
+        step={type === "number" ? "any" : undefined}
+        min={type === "number" ? 0 : undefined}
+      />
+    </label>
+  );
+}
+function FocusHeading({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
+  return (
+    <h2 ref={ref} tabIndex={-1}>
+      {children}
+    </h2>
+  );
+}
+function CourseEditor({
+  course,
+  termId,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  course?: Course;
+  termId: string;
+  busy: boolean;
+  onSave: (input: CreateInput<"courses">) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(course?.name ?? "");
+  const [code, setCode] = useState(course?.code ?? "");
+  const [instructor, setInstructor] = useState(course?.instructor ?? "");
+  const [section, setSection] = useState(course?.section ?? "");
+  const [hours, setHours] = useState(String(course?.registeredHours ?? ""));
+  const [activity, setActivity] = useState(course?.activityType ?? "");
+  const [error, setError] = useState("");
+  return (
+    <form
+      className="review-card management-editor"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (
+          !name.trim() ||
+          !code.trim() ||
+          !hours.trim() ||
+          !Number.isFinite(Number(hours)) ||
+          Number(hours) < 0
+        ) {
+          setError(t.invalidCourse);
+          return;
+        }
+        onSave({
+          academicTermId: termId,
+          name,
+          code,
+          instructor: nullable(instructor),
+          section: nullable(section),
+          registeredHours: Number(hours),
+          activityType:
+            activity === "theory" || activity === "practical" ? activity : null,
+        });
+      }}
+    >
+      <FocusHeading>{course ? t.editCourse : t.addCourse}</FocusHeading>
+      <p className="review-note">{t.editHint}</p>
+      {error && <p role="alert">{error}</p>}
+      <fieldset disabled={busy}>
+        <div className="review-fields">
+          <Field label={t.name} value={name} onChange={setName} required />
+          <Field label={t.code} value={code} onChange={setCode} ltr required />
+          <Field
+            label={t.instructor}
+            value={instructor}
+            onChange={setInstructor}
+          />
+          <Field label={t.section} value={section} onChange={setSection} ltr />
+          <Field
+            label={t.hours}
+            value={hours}
+            onChange={setHours}
+            type="number"
+            ltr
+            required
+          />
+          <label className="review-field">
+            <span>{t.activity}</span>
+            <select
+              value={activity}
+              onChange={(event) => setActivity(event.target.value)}
+            >
+              <option value="">{t.unknown}</option>
+              <option value="theory">{t.theory}</option>
+              <option value="practical">{t.practical}</option>
+            </select>
+          </label>
+        </div>
+        <div className="management-actions">
+          <button type="submit">{t.save}</button>
+          <button type="button" onClick={onCancel}>
+            {t.cancel}
+          </button>
+        </div>
+      </fieldset>
+    </form>
+  );
+}
+function SessionEditor({
+  session,
+  course,
+  sessions,
+  courses,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  session?: ScheduleSession;
+  course: Course;
+  sessions: ScheduleSession[];
+  courses: Course[];
+  busy: boolean;
+  onSave: (
+    input: CreateInput<"scheduleSessions">,
+    overlaps: ScheduleSession[],
+  ) => void;
+  onCancel: () => void;
+}) {
+  const [day, setDay] = useState(session?.dayOfWeek ?? 7);
+  const [start, setStart] = useState(session?.startTime ?? "");
+  const [end, setEnd] = useState(session?.endTime ?? "");
+  const [room, setRoom] = useState(session?.room ?? "");
+  const [mode, setMode] = useState(session?.deliveryMode ?? "in-person");
+  const [ack, setAck] = useState(false);
+  const [error, setError] = useState("");
+  const slot = { dayOfWeek: day, startTime: start, endTime: end };
+  const valid = validSlot(slot);
+  const overlaps = valid
+    ? overlappingSessions(slot, sessions, session?.id)
+    : [];
+  return (
+    <form
+      className="review-card management-editor"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!valid) {
+          setError(t.invalidTime);
+          return;
+        }
+        if (overlaps.length && !ack) {
+          setError(t.acknowledge);
+          return;
+        }
+        onSave(
+          {
+            academicTermId: course.academicTermId,
+            courseId: course.id,
+            ...slot,
+            room: nullable(room),
+            deliveryMode: mode,
+          },
+          overlaps,
+        );
+      }}
+    >
+      <FocusHeading>
+        {session ? t.editSession : t.addSession} · {course.name}
+      </FocusHeading>
+      {error && <p role="alert">{error}</p>}
+      <fieldset disabled={busy}>
+        <div className="review-fields">
+          <label className="review-field">
+            <span>{t.day}</span>
+            <select
+              value={day}
+              onChange={(event) => {
+                setDay(Number(event.target.value));
+                setAck(false);
+              }}
+            >
+              {dayOrder.map((value) => (
+                <option key={value} value={value}>
+                  {t.days[value]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Field
+            label={t.start}
+            value={start}
+            onChange={(value) => {
+              setStart(value);
+              setAck(false);
+            }}
+            ltr
+            required
+          />
+          <Field
+            label={t.end}
+            value={end}
+            onChange={(value) => {
+              setEnd(value);
+              setAck(false);
+            }}
+            ltr
+            required
+          />
+          <Field label={t.room} value={room} onChange={setRoom} ltr />
+          <label className="review-field">
+            <span>{t.mode}</span>
+            <select
+              value={mode}
+              onChange={(event) =>
+                setMode(event.target.value as ScheduleSession["deliveryMode"])
+              }
+            >
+              <option value="in-person">{t.inPerson}</option>
+              <option value="online">{t.online}</option>
+            </select>
+          </label>
+        </div>
+        <p className="review-note">{t.adjacency}</p>
+        {overlaps.length > 0 && (
+          <div className="review-alert">
+            <h3>{t.overlaps}</h3>
+            <ul>
+              {overlaps.map((row) => (
+                <li key={row.id}>
+                  {t.sessionLabel(
+                    courses.find((item) => item.id === row.courseId)?.name ??
+                      t.unknown,
+                    t.days[row.dayOfWeek],
+                    row.startTime,
+                    row.endTime,
+                  )}
+                </li>
+              ))}
+            </ul>
+            <label className="review-choice">
+              <input
+                type="checkbox"
+                checked={ack}
+                onChange={(event) => setAck(event.target.checked)}
+              />
+              {t.acknowledge}
+            </label>
+          </div>
+        )}
+        <div className="management-actions">
+          <button type="submit">{t.save}</button>
+          <button type="button" onClick={onCancel}>
+            {t.cancel}
+          </button>
+        </div>
+      </fieldset>
+    </form>
+  );
+}
+
+type Editor =
+  | { kind: "course"; course?: Course }
+  | { kind: "session"; course: Course; session?: ScheduleSession };
+type Removal =
+  | { kind: "course"; record: Course; graph: DeletionEntry[] }
+  | { kind: "session"; record: ScheduleSession; graph: DeletionEntry[] };
+
+export function Courses({ store = defaultStore }: { store?: Store }) {
+  const [data, setData] = useState<Snapshot | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [view, setView] = useState<"courses" | "week">("courses");
+  const [editor, setEditor] = useState<Editor | null>(null);
+  const [removal, setRemoval] = useState<Removal | null>(null);
+  useEffect(() => {
+    let active = true;
+    store
+      .getTimetable()
+      .then((snapshot) => {
+        if (active) setData(snapshot);
+      })
+      .catch((failure) => {
+        if (active) setError(errorText(failure));
+      })
+      .finally(() => {
+        if (active) setBusy(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [store]);
+
+  async function load(termId = data?.termId) {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      setData(await store.getTimetable(termId));
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+  function begin(next: Editor) {
+    setEditor(next);
+    setRemoval(null);
+    setNotice("");
+    setError("");
+  }
+  function cancel() {
+    setEditor(null);
+    setRemoval(null);
+    setError("");
+  }
+  async function write(
+    action: () => Promise<unknown>,
+    session = false,
+    deleting = false,
+  ) {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await action();
+      setEditor(null);
+      setRemoval(null);
+      setNotice(deleting ? t.removed : t.saved);
+      // A refresh failure must not report a committed write as a failed save.
+      try {
+        setData(await store.getTimetable(data?.termId));
+      } catch (failure) {
+        setError(errorText(failure));
+      }
+    } catch (failure) {
+      setError(errorText(failure, session));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function preview(
+    kind: "course" | "session",
+    record: Course | ScheduleSession,
+  ) {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const graph = await (
+        kind === "course" ? store.courses : store.scheduleSessions
+      ).previewDelete(record.id);
+      if (
+        graph.some(
+          (row) => row.kind !== "courses" && row.kind !== "scheduleSessions",
+        )
+      ) {
+        setError(t.protected);
+        return;
+      }
+      setRemoval(
+        kind === "course"
+          ? { kind, record: record as Course, graph }
+          : { kind, record: record as ScheduleSession, graph },
+      );
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const locked = busy || !!editor || !!removal;
+  const courses = data?.courses ?? [];
+  const sessions = ordered(data?.sessions ?? []);
+  const conflicts = sessions.flatMap((row, index) =>
+    overlappingSessions(row, sessions.slice(index + 1)).map((other) => ({
+      row,
+      other,
+    })),
+  );
+  const sessionLabel = (row: ScheduleSession) =>
+    t.sessionLabel(
+      courses.find((course) => course.id === row.courseId)?.name ?? t.unknown,
+      t.days[row.dayOfWeek],
+      row.startTime,
+      row.endTime,
+    );
+  function renderSession(row: ScheduleSession, includeCourse = false) {
+    const course = courses.find((item) => item.id === row.courseId);
+    const color = courses.findIndex((item) => item.id === row.courseId) % 5;
+    return (
+      <li className="managed-session" data-course-color={color} key={row.id}>
+        <div>
+          {includeCourse && <strong>{course?.name ?? t.unknown}</strong>}
+          <p>
+            <span>{t.days[row.dayOfWeek]}</span> ·{" "}
+            <bdi dir="ltr">
+              {row.startTime}–{row.endTime}
+            </bdi>
+          </p>
+          <p>
+            <bdi dir="ltr">{row.room || row.location || t.unknown}</bdi> ·{" "}
+            <span className="session-mode" data-mode={row.deliveryMode}>
+              {row.deliveryMode === "online" ? t.online : t.inPerson}
+            </span>
+          </p>
+        </div>
+        <div className="management-actions">
+          <button
+            disabled={locked || !course}
+            onClick={() =>
+              course && begin({ kind: "session", session: row, course })
+            }
+          >
+            {t.editSession}
+          </button>
+          <button
+            className="remove-draft"
+            disabled={locked}
+            onClick={() => void preview("session", row)}
+          >
+            {t.removeSession}
+          </button>
+        </div>
+      </li>
+    );
+  }
+  return (
+    <div className="timetable-review timetable-management">
+      <PageHeader title={t.title} description={t.description} />
+      <div className="management-toolbar">
+        <Link className="button-link" to="/courses/import">
+          {t.import}
+        </Link>
+        <button disabled={locked} onClick={() => void load()}>
+          {t.retry}
+        </button>
+      </div>
+      <p className="review-note">{t.refreshHint}</p>
+      {busy && <p role="status">{t.loading}</p>}
+      {notice && (
+        <p role="status" className="management-success">
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="review-alert">
+          {error}
+        </p>
+      )}
+      {data && !data.terms.length && <p className="review-card">{t.noTerm}</p>}
+      {conflicts.length > 0 && (
+        <section className="review-alert" aria-label={t.overlaps}>
+          <h2>{t.overlaps}</h2>
+          <ul>
+            {conflicts.map(({ row, other }) => (
+              <li key={`${row.id}:${other.id}`}>
+                {sessionLabel(row)} / {sessionLabel(other)}
+              </li>
+            ))}
+          </ul>
+          <p>{t.adjacency}</p>
+        </section>
+      )}
+      {!!data?.terms.length && (
+        <>
+          <div className="management-toolbar">
+            <label className="review-field">
+              <span>{t.term}</span>
+              <select
+                value={data.termId}
+                disabled={locked}
+                onChange={(event) => void load(event.target.value)}
+              >
+                {data.terms.map((term) => (
+                  <option key={term.id} value={term.id}>
+                    {term.name} · {term.academicYear}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div
+              role="group"
+              aria-label={t.view}
+              className="management-actions"
+            >
+              <button
+                aria-pressed={view === "courses"}
+                disabled={!!editor || !!removal}
+                onClick={() => setView("courses")}
+              >
+                {t.coursesView}
+              </button>
+              <button
+                aria-pressed={view === "week"}
+                disabled={!!editor || !!removal}
+                onClick={() => setView("week")}
+              >
+                {t.weekView}
+              </button>
+            </div>
+            <button disabled={locked} onClick={() => begin({ kind: "course" })}>
+              {t.addCourse}
+            </button>
+          </div>
+          {editor?.kind === "course" && (
+            <CourseEditor
+              key={editor.course?.id ?? "new-course"}
+              course={editor.course}
+              termId={data.termId!}
+              busy={busy}
+              onCancel={cancel}
+              onSave={(input) =>
+                void write(() =>
+                  editor.course
+                    ? store.courses.update(
+                        editor.course.id,
+                        input,
+                        editor.course.revision,
+                      )
+                    : store.courses.create(input),
+                )
+              }
+            />
+          )}
+          {editor?.kind === "session" && (
+            <SessionEditor
+              key={editor.session?.id ?? "new-session"}
+              session={editor.session}
+              course={editor.course}
+              sessions={sessions}
+              courses={courses}
+              busy={busy}
+              onCancel={cancel}
+              onSave={(input, overlaps) =>
+                void write(
+                  () =>
+                    store.saveManagedSession(
+                      input,
+                      editor.session
+                        ? {
+                            id: editor.session.id,
+                            revision: editor.session.revision,
+                          }
+                        : undefined,
+                      overlaps.map((row) => ({
+                        id: row.id,
+                        revision: row.revision,
+                      })),
+                    ),
+                  true,
+                )
+              }
+            />
+          )}
+          {removal && (
+            <section
+              className="review-card management-editor"
+              aria-label={t.confirmDelete}
+            >
+              <FocusHeading>{t.confirmDelete}</FocusHeading>
+              <p>
+                {removal.kind === "course"
+                  ? removal.record.name
+                  : t.sessionLabel(
+                      courses.find((row) => row.id === removal.record.courseId)
+                        ?.name ?? t.unknown,
+                      t.days[removal.record.dayOfWeek],
+                      removal.record.startTime,
+                      removal.record.endTime,
+                    )}
+              </p>
+              <p className="review-note">
+                {removal.kind === "course"
+                  ? t.deleteCourseNote(
+                      removal.graph.filter(
+                        (row) => row.kind === "scheduleSessions",
+                      ).length,
+                    )
+                  : t.deleteSessionNote}
+              </p>
+              <div className="management-actions">
+                <button
+                  className="remove-draft"
+                  disabled={busy}
+                  onClick={() =>
+                    void write(
+                      () =>
+                        removal.kind === "course"
+                          ? store.deleteManagedCourse(
+                              removal.record.id,
+                              removal.record.revision,
+                              removal.graph,
+                            )
+                          : store.scheduleSessions.delete(removal.record.id, {
+                              expectedRevision: removal.record.revision,
+                            }),
+                      false,
+                      true,
+                    )
+                  }
+                >
+                  {t.confirmDelete}
+                </button>
+                <button disabled={busy} onClick={cancel}>
+                  {t.cancel}
+                </button>
+              </div>
+            </section>
+          )}
+          {view === "courses" ? (
+            <div className="managed-courses">
+              {!courses.length && <p className="review-card">{t.empty}</p>}
+              {courses.map((course) => (
+                <article
+                  key={course.id}
+                  className="review-card managed-course"
+                  aria-label={course.name}
+                >
+                  <header>
+                    <div>
+                      <h2>{course.name}</h2>
+                      <bdi dir="ltr" className="course-code">
+                        {course.code}
+                      </bdi>
+                    </div>
+                    <div className="management-actions">
+                      <button
+                        disabled={locked}
+                        onClick={() => begin({ kind: "course", course })}
+                      >
+                        {t.editCourse}
+                      </button>
+                      <button
+                        className="remove-draft"
+                        disabled={locked}
+                        onClick={() => void preview("course", course)}
+                      >
+                        {t.removeCourse}
+                      </button>
+                    </div>
+                  </header>
+                  <p className="course-details">
+                    {course.instructor || t.unknown} ·{" "}
+                    {t.sectionLabel(course.section || t.unknown)} ·{" "}
+                    {course.activityType === "theory"
+                      ? t.theory
+                      : course.activityType === "practical"
+                        ? t.practical
+                        : t.unknown}{" "}
+                    · {t.creditLabel(course.registeredHours)}
+                  </p>
+                  <ul className="managed-sessions">
+                    {sessions
+                      .filter((row) => row.courseId === course.id)
+                      .map((row) => renderSession(row))}
+                  </ul>
+                  {!sessions.some((row) => row.courseId === course.id) && (
+                    <p className="review-note">{t.noSessions}</p>
+                  )}
+                  <button
+                    disabled={locked}
+                    onClick={() => begin({ kind: "session", course })}
+                  >
+                    {t.addSession}
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="weekly-agenda">
+              {dayOrder.map((day) => (
+                <section
+                  key={day}
+                  className="agenda-day"
+                  aria-label={t.days[day]}
+                >
+                  <h2>{t.days[day]}</h2>
+                  <ul className="managed-sessions">
+                    {sessions
+                      .filter((row) => row.dayOfWeek === day)
+                      .map((row) => renderSession(row, true))}
+                  </ul>
+                  {!sessions.some((row) => row.dayOfWeek === day) && (
+                    <p className="review-note">{t.noDaySessions}</p>
+                  )}
+                </section>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

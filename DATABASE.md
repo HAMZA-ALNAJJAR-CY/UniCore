@@ -88,6 +88,16 @@ const result = await store.createRelated(candidates);
 
 `DataError` codes: VALIDATION, NOT_FOUND, RELATIONSHIP, DUPLICATE, CONFLICT, IDENTITY_COLLISION, DEPENDENTS, QUOTA, UNAVAILABLE. LectureFiles lists filtered by lectureId and MaterialFiles lists filtered by materialId use their corresponding indexes before applying other exact filters. Lists without a parent filter still scan the store. Pagination/streaming are not implemented; large Blob libraries need later performance work.
 
+## Phase 1C management contracts (no schema change)
+
+`getTimetable(termId?)` returns `{ terms, termId, courses, sessions }` from a consistent read transaction. It excludes tombstones and uses the academicTermId indexes for the selected term. It neither reads Blob stores nor seeds records. Without a selected ID, the latest academicYear/semester is selected, with UUID as deterministic tie-breaker; the UI exposes explicit term selection.
+
+Course management uses existing create/update methods. Updates send only editable fields and captured expectedRevision, preserving UUID, createdAt, unedited description, mapping rows and attachment relationships. Session edits preserve notes/location similarly. Unknown instructors may be null. Parent course/term IDs are fixed in the editor.
+
+`saveManagedSession(input, editing?, confirmedOverlaps = [])` creates or patches a session in one transaction. `editing` contains the existing ID and revision; confirmations contain exactly the IDs/revisions of overlapping active sessions in the same term. The service validates required fields, references and times, rejects reassignment of an existing session and identical course/day/start/end duplicates, then rechecks overlap confirmations before writing. Changed/new overlaps cause CONFLICT. Zero-minute transitions need no acknowledgment. This policy applies to management; existing import/repository contracts remain unchanged.
+
+`deleteManagedCourse(id, expectedRevision, confirmation)` rejects any active dependency beyond weekly sessions. It then invokes the existing reviewed transactional soft deletion. Course/session confirmation protects against concurrent edits/dependencies; neither import mappings nor Blob bytes are changed. Session controls use default restricted deletion, so linked lectures block removal. Historical detachment remains an explicit developer service operation, not an automatic management action. Deleted source mappings continue pointing to tombstones and prevent re-import resurrection.
+
 ## Deletion integrity
 
 Default deletion is restricted when active dependents exist. A preview returns the transitive graph of IDs/table names/revisions. Explicit cascade requires that graph as confirmation. Changed/added dependencies cause rejection and require a fresh reviewed preview. Deletion is atomic, soft only, increments revisions and retains Blob bytes.

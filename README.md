@@ -32,9 +32,17 @@ UniCore is a university management application with an offline-first PWA vision.
 
 Developers use `createAcademicStore()` from `src/data`, never direct Dexie tables. See DATABASE.md for contracts and migration rules.
 
+## Implemented in Phase 1C
+
+- `/courses` now reads saved terms/courses/sessions and offers course cards or a responsive weekly agenda. Each session retains its own day/time/room/mode; no misleading combined time ranges.
+- Inline course and session editors with save/cancel, nullable instructors, additions, validation, revision checks and persistent UUIDs. Management uses only stored records, without personal timetable assumptions.
+- Overlap warnings for saved schedules and pending session edits; acknowledgment is rechecked transactionally against current overlap IDs/revisions. Adjacent sessions are not overlaps. Identical weekly sessions are rejected.
+- Confirmed removal preserves tombstones and source mappings. Course removal can include only reviewed weekly sessions; lectures/materials block it. Session removal blocks linked historical lectures. No history or attachments cascade from management controls.
+- New management text lives in one Arabic catalog. A complete English catalog and language-switch infrastructure remain future work; no partial language toggle is exposed.
+
 ## Planned, not implemented
 
-General academic record editing screens, dashboard/calendar data integration, real countdowns, calendar events, authentication, Supabase, cloud sync, Google Calendar integration, backup/restore, service worker, offline application loading, and PWA installation. AI belongs to V2. Recurring sessions do not generate actual lectures. Unsaved import drafts are lost on reload; source images are not processed or uploaded.
+Term editing, lecture/material management screens, dashboard/calendar data integration, complete Arabic/English switching, real countdowns, calendar events, authentication, Supabase, cloud sync, Google Calendar integration, backup/restore, service worker, offline application loading, and PWA installation. AI belongs to V2. Recurring sessions do not generate actual lectures. Unsaved import/editor drafts are lost on reload; source images are not processed or uploaded. Cross-tab management updates require cancelling edits and refreshing; revision checks prevent stale saves.
 
 Placeholder pages show planned labels and contain no fake feature controls. Dashboard cards are real navigation links. The toast API is available to developers but has no demonstration button in the product.
 
