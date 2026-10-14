@@ -11,3 +11,19 @@ Validation covers navigation and current-link synchronization, missing-route rec
 GitHub connector confirms owner write access. A local Git push dry run failed because the Windows credential helper cannot access credentials in this execution environment. No credentials are stored in source files. Normal push will be attempted at delivery; failure will be reported with the local commit preserved.
 
 Phase 1 has not been started.
+
+## 2026-10-15 — Phase 1A local database foundation
+
+Starting point: clean `main` at Phase 0 commit `79acd35`. The Phase 0 shell, routes, styles and shell tests are preserved without changes.
+
+Added Dexie 4.4.6 and development-only fake-indexeddb 6.2.5. Added normalized models and version 1 stores for academic terms, courses, schedule sessions, actual lectures, lecture files, materials and material files. Files retain actual Blob bytes; file metadata is derived from the Blob. Unknown optional academic fields remain nullable. No timetable data is seeded or imported.
+
+Added typed transactional repositories, runtime validation, per-term course-code uniqueness, stable UUIDs, timestamps, revisions and soft-delete tombstones. Default deletion rejects dependent records; explicit cascade requires a current reviewed dependency graph and rolls back atomically on failure. Bulk upsert inserts missing stable IDs only and reports existing identities/natural keys without overwriting user edits. ESLint enforces the UI/service import boundary. Database versioning, storage limitations, safe migration practice and future explicit sync conflict resolution are documented in DATABASE.md. No last-write-wins sync is implemented.
+
+Validation executed: typecheck passed; ESLint passed; 36 tests passed across two files (28 database tests and the original eight shell tests); production build passed. Database tests use isolated fake-indexeddb stores in Node to preserve native Blob structured cloning. They cover all entity types, edits, reopening, uniqueness, relationships, invalid inputs, separate attachment storage, stale competing writers, reviewed deletion, cascade rollback, quota error injection, bulk idempotence/rollback, tombstones and an additive test-only version upgrade. Real device quota/eviction is not simulated; no claim of cross-browser storage certification is made. Dependency installation audit reported zero vulnerabilities.
+
+The initial test run caught Dexie async transaction lifetime handling and a custom-error name collision with native IndexedDB DataError. Both were fixed before final validation. Local revisions support stale local edit detection, not multi-device causal tracking. Restoration, Blob garbage collection, pagination, backup/export and import workflows remain future work. IndexedDB alone does not make the application load offline.
+
+The timetable remains unapproved. Discrete Mathematics instructor OCR is wrong and must remain null until corrected; B203's asterisk is an unconfirmed source note. Arabic/RTL UI, Supabase, authentication, cloud sync, PWA/service worker and AI are outside this phase.
+
+Delivery: create the requested local Phase 1A commit after checks; do not push. Phase 1B has not been started.

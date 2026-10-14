@@ -20,4 +20,37 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: [
+      "src/app/**/*.{ts,tsx}",
+      "src/components/**/*.{ts,tsx}",
+      "src/pages/**/*.{ts,tsx}",
+      "src/main.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "dexie",
+              message:
+                "Use the public src/data service; UI must not access tables.",
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                "**/data/database",
+                "**/data/store",
+                "**/data/validation",
+                "**/data/errors",
+              ],
+              message: "Import from the public src/data entry point.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 );
