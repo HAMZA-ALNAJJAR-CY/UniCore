@@ -38,11 +38,18 @@ Developers use `createAcademicStore()` from `src/data`, never direct Dexie table
 - Inline course and session editors with save/cancel, nullable instructors, additions, validation, revision checks and persistent UUIDs. Management uses only stored records, without personal timetable assumptions.
 - Overlap warnings for saved schedules and pending session edits; acknowledgment is rechecked transactionally against current overlap IDs/revisions. Adjacent sessions are not overlaps. Identical weekly sessions are rejected.
 - Confirmed removal preserves tombstones and source mappings. Course removal can include only reviewed weekly sessions; lectures/materials block it. Session removal blocks linked historical lectures. No history or attachments cascade from management controls.
-- New management text lives in one Arabic catalog. A complete English catalog and language-switch infrastructure remain future work; no partial language toggle is exposed.
+- Management messages are centralized; Phase 2 extends them with complete English UI translations.
+
+## Implemented in Phase 2
+
+- Saved-data dashboard: term selection, course/session/credit counters, local date, today's chronological sessions with live statuses, next-session countdown and weekly distribution.
+- Weekly/day calendar with previous/next/Today navigation, a mobile day selector and links to the existing course management cards. Recurring sessions are never converted into Lecture records.
+- Complete Arabic/English system UI catalogs, accessible persistent language selection, immediate RTL/LTR updates, localized dates/numbers and translated validation/errors. Academic names and source content retain their original language.
+- No schema or dependency changes. Data reads occur on route mount, term selection or explicit refresh, not every timer tick. No recent-activity history is invented.
 
 ## Planned, not implemented
 
-Term editing, lecture/material management screens, dashboard/calendar data integration, complete Arabic/English switching, real countdowns, calendar events, authentication, Supabase, cloud sync, Google Calendar integration, backup/restore, service worker, offline application loading, and PWA installation. AI belongs to V2. Recurring sessions do not generate actual lectures. Unsaved import/editor drafts are lost on reload; source images are not processed or uploaded. Cross-tab management updates require cancelling edits and refreshing; revision checks prevent stale saves.
+Term editing, lecture/material management screens, monthly calendar, calendar events/holidays, authentication, Supabase, cloud sync, Google Calendar integration, backup/restore, service worker, offline application loading, and PWA installation. AI belongs to V2. Unsaved import/editor drafts are lost on reload. Cross-tab updates require explicit refresh; revision checks prevent stale saves. The selected term defaults to the latest stored academic year/semester, not inferred active dates; select the appropriate term explicitly. Stored start/end dates restrict recurrence when supplied. Without dates, weekly recurrence is projected indefinitely and labeled accordingly.
 
 Placeholder pages show planned labels and contain no fake feature controls. Dashboard cards are real navigation links. The toast API is available to developers but has no demonstration button in the product.
 

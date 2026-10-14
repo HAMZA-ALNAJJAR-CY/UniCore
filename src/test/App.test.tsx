@@ -17,14 +17,11 @@ describe("Phase 0 shell", () => {
   it("renders the dashboard with honest planned feature labels", () => {
     renderRoute();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "حياتك الأكاديمية، تحت السيطرة.",
+      "مرحباً بك في UniCore",
     );
     expect(
-      screen.getByText(
-        "الربط بلوحة التحكم مخطط لاحقاً؛ لا يوجد عد تنازلي نشط.",
-      ),
+      screen.getByRole("combobox", { name: "Language / اللغة" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
   it.each(["المقررات", "التقويم", "المحاضرات", "المواد"])(
     "navigates to the %s placeholder with both navigation states synchronized",
@@ -37,7 +34,7 @@ describe("Phase 0 shell", () => {
       expect(
         screen.getByRole("heading", { level: 1, name: label }),
       ).toBeInTheDocument();
-      if (label !== "المقررات")
+      if (label !== "المقررات" && label !== "التقويم")
         expect(
           screen.getByText("هذه المساحة مخططة لمرحلة لاحقة."),
         ).toBeInTheDocument();
@@ -63,7 +60,7 @@ describe("Phase 0 shell", () => {
       screen.getByRole("link", { name: "العودة إلى لوحة التحكم" }),
     );
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "حياتك الأكاديمية، تحت السيطرة.",
+      "مرحباً بك في UniCore",
     );
   });
 });
@@ -84,9 +81,7 @@ describe("Toast foundation", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Example notification",
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Dismiss notification" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "إغلاق الإشعار" }));
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
   it("expires messages and cleans timers on unmount", () => {

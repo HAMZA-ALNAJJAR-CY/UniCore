@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { tr, dynamic, useLanguage, translateMessage } from "../i18n/locale";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { timetableText } from "../features/timetable/messages";
 import { CheckCircle2, FileCheck2, Plus, Trash2 } from "lucide-react";
@@ -17,26 +18,24 @@ import {
 } from "../features/timetable/draft";
 
 const defaultStore = createAcademicStore();
-const STEPS = [
-  "بيانات الفصل",
-  "المقررات",
-  "الجلسات الأسبوعية",
-  "المراجعة النهائية",
-  "التأكيد والحفظ",
-];
+const STEPS = dynamic(() => [
+  tr("text_32"),
+  tr("text_12"),
+  tr("text_33"),
+  tr("text_34"),
+  tr("text_35"),
+]);
 const nullable = (value: string) => (value.trim() ? value : null);
 function message(error: unknown) {
   if (error instanceof DataError) {
-    if (error.code === "IDENTITY_COLLISION")
-      return "تعذر ترحيل هويات قديمة متعارضة. بياناتك الأصلية محفوظة. لا تمسح بيانات الموقع؛ اطلب مراجعة المطور وفق ملف RECOVERY.md ثم أعد المحاولة.";
-    if (error.code === "QUOTA")
-      return "مساحة التخزين غير كافية. لم تُحفظ أي سجلات جديدة. حرر مساحة ثم أعد المراجعة والمحاولة.";
+    if (error.code === "IDENTITY_COLLISION") return tr("text_36");
+    if (error.code === "QUOTA") return tr("text_37");
     if (error.code === "CONFLICT" || error.code === "VALIDATION")
       return /[\u0600-\u06ff]/.test(error.message)
         ? error.message
-        : "تعارضت البيانات أو تغيرت منذ المراجعة. راجع الحقول والبيانات المحفوظة قبل إعادة التأكيد.";
+        : tr("text_38");
   }
-  return "تعذر الوصول إلى التخزين المحلي. لم تُحفظ أي سجلات جديدة. أعد المحاولة دون مسح بيانات الموقع.";
+  return tr("text_39");
 }
 function TextField({
   label,
@@ -78,7 +77,10 @@ function UnknownFields({
 }) {
   return (
     <details className="unknown-fields">
-      <summary>الحقول غير المؤكدة ({value.length})</summary>
+      <summary>
+        {tr("text_40")}
+        {value.length})
+      </summary>
       <div>
         {fields.map((field) => (
           <label key={field}>
@@ -93,7 +95,7 @@ function UnknownFields({
                 )
               }
             />
-            {FIELD_LABELS[field]} غير مؤكد
+            {FIELD_LABELS[field]} {tr("text_41")}
           </label>
         ))}
       </div>
@@ -121,7 +123,7 @@ function Findings({
           ))}
         </ul>
       ) : (
-        <p>لا توجد ملاحظات في هذه الفئة.</p>
+        <p>{tr("text_42")}</p>
       )}
     </section>
   );
@@ -133,17 +135,17 @@ function WeeklySummary({ draft }: { draft: TimetableDraft }) {
       className="review-table-scroll"
       tabIndex={0}
       role="region"
-      aria-label="ملخص الجلسات الأسبوعية"
+      aria-label={tr("text_43")}
     >
       <table>
-        <caption>الجلسات التي راجعتها</caption>
+        <caption>{tr("text_44")}</caption>
         <thead>
           <tr>
-            <th>المقرر</th>
-            <th>اليوم</th>
-            <th>الوقت (24 ساعة)</th>
-            <th>القاعة</th>
-            <th>الحضور</th>
+            <th>{tr("text_45")}</th>
+            <th>{tr("text_46")}</th>
+            <th>{tr("text_47")}</th>
+            <th>{tr("text_48")}</th>
+            <th>{tr("text_49")}</th>
           </tr>
         </thead>
         <tbody>
@@ -152,7 +154,7 @@ function WeeklySummary({ draft }: { draft: TimetableDraft }) {
               <td>
                 {draft.courses.find(
                   (course) => course.key === session.courseKey,
-                )?.name ?? "ارتباط غير صالح"}
+                )?.name ?? tr("text_50")}
               </td>
               <td>{DAYS[session.dayOfWeek]}</td>
               <td>
@@ -161,10 +163,12 @@ function WeeklySummary({ draft }: { draft: TimetableDraft }) {
                 </bdi>
               </td>
               <td>
-                <bdi dir="ltr">{session.room ?? "غير معروف"}</bdi>
+                <bdi dir="ltr">{session.room ?? tr("text_51")}</bdi>
               </td>
               <td>
-                {session.deliveryMode === "online" ? "إلكتروني" : "وجاهي"}
+                {session.deliveryMode === "online"
+                  ? tr("text_52")
+                  : tr("text_53")}
               </td>
             </tr>
           ))}
@@ -179,6 +183,7 @@ export function TimetableImport({
 }: {
   store?: ReturnType<typeof createAcademicStore>;
 }) {
+  useLanguage();
   const [draft, setDraft] = useState(sourceDraft);
   const [step, setStep] = useState(0);
   const [ready, setReady] = useState(false);
@@ -191,7 +196,7 @@ export function TimetableImport({
   const [confirmed, setConfirmed] = useState(false);
   const [success, setSuccess] = useState("");
   const stepHeading = useRef<HTMLHeadingElement>(null);
-  const stats = useMemo(() => analyzeDraft(draft), [draft]);
+  const stats = analyzeDraft(draft);
   useEffect(() => {
     let active = true;
     async function load() {
@@ -270,13 +275,11 @@ export function TimetableImport({
       }
     } else if (step === 3) {
       if (!plan || stats.errors.length) {
-        setError("صحح البيانات ثم ارجع إلى الجلسات وأعد المراجعة النهائية.");
+        setError(tr("text_54"));
         return;
       }
       if (plan.differences.some((row) => !keep.includes(row.key))) {
-        setError(
-          "اختر الاحتفاظ بكل سجل محفوظ مختلف، أو ارجع لتعديل/استبعاد بيانات المسودة. لن نستبدل تعديلاتك تلقائياً.",
-        );
+        setError(tr("text_55"));
         return;
       }
       setStep(4);
@@ -293,19 +296,12 @@ export function TimetableImport({
       });
       if (!result.committed) {
         const code = result.rejected[0]?.code ?? "CONFLICT";
-        setError(
-          message(
-            new DataError(
-              code,
-              "تغيرت البيانات أو رُفض أحد السجلات. لم تُحفظ أي سجلات جديدة. ارجع إلى المراجعة قبل إعادة التأكيد.",
-            ),
-          ),
-        );
+        setError(message(new DataError(code, tr("text_56"))));
         setConfirmed(false);
         setPlan(null);
       } else
         setSuccess(
-          `اكتمل الحفظ: ${result.created.length} سجل جديد، و${result.skipped.length} سجل موجود احتُفظ به دون تغيير. لم تُنشأ أي محاضرات فعلية.`,
+          tr("text_57", [result.created.length, result.skipped.length]),
         );
     } catch (failure) {
       setError(message(failure));
@@ -316,16 +312,13 @@ export function TimetableImport({
     }
   }
   return (
-    <div className="timetable-review" dir="rtl" lang="ar">
+    <div className="timetable-review">
       <header className="page-header">
-        <p className="eyebrow">استيراد محلي بعد المراجعة</p>
-        <h1>مراجعة الجدول الدراسي</h1>
-        <p>
-          مسودة من الجدول المقدم، وليست بيانات مؤكدة. لن تُحفظ المقررات أو
-          الجلسات إلا بعد تأكيدك الصريح.
-        </p>
+        <p className="eyebrow">{tr("text_58")}</p>
+        <h1>{tr("text_2")}</h1>
+        <p>{tr("text_59")}</p>
       </header>
-      <ol className="review-steps" aria-label="خطوات الاستيراد">
+      <ol className="review-steps" aria-label={tr("text_60")}>
         {STEPS.map((label, index) => (
           <li key={label} aria-current={step === index ? "step" : undefined}>
             <span>{index + 1}</span>
@@ -335,15 +328,15 @@ export function TimetableImport({
       </ol>
       {error && (
         <div className="review-alert" role="alert">
-          {error}
+          {translateMessage(error)}
         </div>
       )}
-      {!ready && <p role="status">جارٍ فحص التخزين والروابط السابقة…</p>}
+      {!ready && <p role="status">{tr("text_61")}</p>}
       {success ? (
         <section className="empty-state" role="status">
           <CheckCircle2 size={40} aria-hidden="true" />
-          <h2>حُفظت المراجعة محلياً</h2>
-          <p>{success}</p>
+          <h2>{tr("text_62")}</h2>
+          <p>{translateMessage(success)}</p>
           <Link className="button-link" to="/courses">
             {timetableText.coursesView}
           </Link>
@@ -355,7 +348,7 @@ export function TimetableImport({
               setConfirmed(false);
             }}
           >
-            مراجعة المسودة مجدداً
+            {tr("text_63")}
           </button>
         </section>
       ) : (
@@ -371,7 +364,7 @@ export function TimetableImport({
               <section className="review-card">
                 <div className="review-fields">
                   <TextField
-                    label="اسم الفصل"
+                    label={tr("text_64")}
                     value={draft.term.name}
                     onChange={(name) =>
                       edit((current) => ({
@@ -381,7 +374,7 @@ export function TimetableImport({
                     }
                   />
                   <TextField
-                    label="العام الدراسي"
+                    label={tr("text_65")}
                     value={draft.term.academicYear}
                     ltr
                     onChange={(academicYear) =>
@@ -392,7 +385,7 @@ export function TimetableImport({
                     }
                   />
                   <TextField
-                    label="رقم الفصل"
+                    label={tr("text_66")}
                     type="number"
                     value={draft.term.semester}
                     onChange={(value) =>
@@ -406,7 +399,7 @@ export function TimetableImport({
                     }
                   />
                   <TextField
-                    label="الكلية (اختياري)"
+                    label={tr("text_67")}
                     value={draft.term.college ?? ""}
                     onChange={(college) =>
                       edit((current) => ({
@@ -416,7 +409,7 @@ export function TimetableImport({
                     }
                   />
                   <TextField
-                    label="التخصص (اختياري)"
+                    label={tr("text_68")}
                     value={draft.term.program ?? ""}
                     onChange={(program) =>
                       edit((current) => ({
@@ -426,7 +419,7 @@ export function TimetableImport({
                     }
                   />
                   <TextField
-                    label="بداية الفصل (اختيارية)"
+                    label={tr("text_69")}
                     type="date"
                     value={draft.term.startDate ?? ""}
                     onChange={(startDate) =>
@@ -440,7 +433,7 @@ export function TimetableImport({
                     }
                   />
                   <TextField
-                    label="نهاية الفصل (اختيارية)"
+                    label={tr("text_70")}
                     type="date"
                     value={draft.term.endDate ?? ""}
                     onChange={(endDate) =>
@@ -452,7 +445,7 @@ export function TimetableImport({
                   />
                   {terms.length > 0 && (
                     <label className="review-field">
-                      الفصل المحفوظ المستهدف
+                      {tr("text_71")}
                       <select
                         value={
                           draft.term.id &&
@@ -470,9 +463,7 @@ export function TimetableImport({
                           }))
                         }
                       >
-                        <option value="">
-                          تحديد تلقائي آمن حسب الربط أو العام والفصل
-                        </option>
+                        <option value="">{tr("text_72")}</option>
                         {terms.map((term) => (
                           <option key={term.id} value={term.id}>
                             {term.name}
@@ -482,42 +473,36 @@ export function TimetableImport({
                     </label>
                   )}
                 </div>
-                <p className="review-note">
-                  المصدر يسجل 15 ساعة. الإجمالي أدناه يُحسب من المقررات بعد
-                  تعديلاتك. لا توجد تواريخ فصل أو منطقة زمنية مفترضة.
-                </p>
+                <p className="review-note">{tr("text_73")}</p>
               </section>
             )}
             {step === 1 && (
               <>
-                <p className="review-note">
-                  المدرس والشعبة اختياريان. لا تدمج مقرر البرمجة ومختبره؛ لكل
-                  منهما رمز مستقل.
-                </p>
+                <p className="review-note">{tr("text_74")}</p>
                 {draft.courses.map((course, index) => (
                   <section
                     className="review-card"
                     key={course.key}
-                    aria-label={`المقرر ${index + 1}`}
+                    aria-label={tr("text_75", [index + 1])}
                   >
                     <div className="review-card-heading">
-                      <h3>{course.name || "مقرر جديد"}</h3>
+                      <h3>{course.name || tr("text_76")}</h3>
                       <span className="badge">{index + 1}</span>
                     </div>
                     <div className="review-fields">
                       <TextField
-                        label="اسم المقرر"
+                        label={tr("text_77")}
                         value={course.name}
                         onChange={(name) => courseEdit(course.key, { name })}
                       />
                       <TextField
-                        label="رمز المقرر"
+                        label={tr("text_78")}
                         value={course.code}
                         ltr
                         onChange={(code) => courseEdit(course.key, { code })}
                       />
                       <TextField
-                        label="اسم المدرس (اختياري)"
+                        label={tr("text_79")}
                         value={course.instructor ?? ""}
                         onChange={(instructor) =>
                           courseEdit(course.key, {
@@ -526,7 +511,7 @@ export function TimetableImport({
                         }
                       />
                       <TextField
-                        label="الشعبة (اختيارية)"
+                        label={tr("text_80")}
                         value={course.section ?? ""}
                         ltr
                         onChange={(section) =>
@@ -534,7 +519,7 @@ export function TimetableImport({
                         }
                       />
                       <TextField
-                        label="الساعات المسجلة"
+                        label={tr("text_81")}
                         type="number"
                         value={course.registeredHours}
                         onChange={(value) =>
@@ -544,7 +529,7 @@ export function TimetableImport({
                         }
                       />
                       <label className="review-field">
-                        النشاط
+                        {tr("text_82")}
                         <select
                           value={course.activityType ?? ""}
                           onChange={(event) =>
@@ -557,9 +542,9 @@ export function TimetableImport({
                             })
                           }
                         >
-                          <option value="">غير مؤكد</option>
-                          <option value="theory">نظري</option>
-                          <option value="practical">عملي</option>
+                          <option value="">{tr("text_83")}</option>
+                          <option value="theory">{tr("text_84")}</option>
+                          <option value="practical">{tr("text_85")}</option>
                         </select>
                       </label>
                     </div>
@@ -592,7 +577,7 @@ export function TimetableImport({
                       }
                     >
                       <Trash2 size={16} aria-hidden="true" />
-                      استبعاد المقرر وجلساته من المسودة
+                      {tr("text_86")}
                     </button>
                   </section>
                 ))}
@@ -619,34 +604,34 @@ export function TimetableImport({
                   }}
                 >
                   <Plus size={18} aria-hidden="true" />
-                  إضافة مقرر
+                  {tr("text_87")}
                 </button>
               </>
             )}
             {step === 2 && (
               <>
-                <p className="review-note">
-                  الأوقات بصيغة 24 ساعة. الأيام الأخرى غير مذكورة في المصدر؛ لا
-                  يعني ذلك خلوها من الالتزامات.
-                </p>
+                <p className="review-note">{tr("text_88")}</p>
                 {draft.sessions.map((session, index) => (
                   <section
                     className="review-card session-card"
                     data-mode={session.deliveryMode}
                     key={session.key}
-                    aria-label={`الجلسة ${index + 1}`}
+                    aria-label={tr("text_89", [index + 1])}
                   >
                     <div className="review-card-heading">
-                      <h3>الجلسة {index + 1}</h3>
+                      <h3>
+                        {tr("text_90")}
+                        {index + 1}
+                      </h3>
                       <span className="badge">
                         {session.deliveryMode === "online"
-                          ? "إلكتروني"
-                          : "وجاهي"}
+                          ? tr("text_52")
+                          : tr("text_53")}
                       </span>
                     </div>
                     <div className="review-fields">
                       <label className="review-field">
-                        المقرر المرتبط
+                        {tr("text_91")}
                         <select
                           value={session.courseKey}
                           onChange={(event) =>
@@ -655,7 +640,7 @@ export function TimetableImport({
                             })
                           }
                         >
-                          <option value="">اختر مقرراً</option>
+                          <option value="">{tr("text_92")}</option>
                           {draft.courses.map((course) => (
                             <option key={course.key} value={course.key}>
                               {course.name} — {course.code}
@@ -664,7 +649,7 @@ export function TimetableImport({
                         </select>
                       </label>
                       <label className="review-field">
-                        اليوم
+                        {tr("text_46")}
                         <select
                           value={session.dayOfWeek}
                           onChange={(event) =>
@@ -681,7 +666,7 @@ export function TimetableImport({
                         </select>
                       </label>
                       <TextField
-                        label="وقت البداية (HH:mm)"
+                        label={tr("text_93")}
                         value={session.startTime}
                         ltr
                         onChange={(startTime) =>
@@ -689,7 +674,7 @@ export function TimetableImport({
                         }
                       />
                       <TextField
-                        label="وقت النهاية (HH:mm)"
+                        label={tr("text_94")}
                         value={session.endTime}
                         ltr
                         onChange={(endTime) =>
@@ -697,7 +682,7 @@ export function TimetableImport({
                         }
                       />
                       <TextField
-                        label="القاعة أو الموقع (اختياري)"
+                        label={tr("text_95")}
                         value={session.room ?? ""}
                         ltr
                         onChange={(room) =>
@@ -705,7 +690,7 @@ export function TimetableImport({
                         }
                       />
                       <label className="review-field">
-                        نمط الحضور
+                        {tr("text_96")}
                         <select
                           value={session.deliveryMode}
                           onChange={(event) =>
@@ -715,12 +700,12 @@ export function TimetableImport({
                             })
                           }
                         >
-                          <option value="in-person">وجاهي</option>
-                          <option value="online">إلكتروني</option>
+                          <option value="in-person">{tr("text_53")}</option>
+                          <option value="online">{tr("text_52")}</option>
                         </select>
                       </label>
                       <TextField
-                        label="ملاحظة المصدر (اختيارية)"
+                        label={tr("text_97")}
                         value={session.notes ?? ""}
                         onChange={(notes) =>
                           sessionEdit(session.key, { notes: nullable(notes) })
@@ -746,7 +731,7 @@ export function TimetableImport({
                       }
                     >
                       <Trash2 size={16} aria-hidden="true" />
-                      استبعاد الجلسة من المسودة
+                      {tr("text_98")}
                     </button>
                   </section>
                 ))}
@@ -774,7 +759,7 @@ export function TimetableImport({
                   }}
                 >
                   <Plus size={18} aria-hidden="true" />
-                  إضافة جلسة
+                  {tr("text_99")}
                 </button>
               </>
             )}
@@ -782,7 +767,8 @@ export function TimetableImport({
               <>
                 <section className="review-stats">
                   <div>
-                    <strong>{stats.courseCount}</strong>مقررات
+                    <strong>{stats.courseCount}</strong>
+                    {tr("text_100")}
                   </div>
                   <div>
                     <strong>
@@ -790,10 +776,11 @@ export function TimetableImport({
                         ? plan.savedSummary.hours
                         : stats.hours}
                     </strong>
-                    ساعات المقررات المراجعة
+                    {tr("text_101")}
                   </div>
                   <div>
-                    <strong>{stats.sessionCount}</strong>جلسات أسبوعية
+                    <strong>{stats.sessionCount}</strong>
+                    {tr("text_102")}
                   </div>
                 </section>
                 {step === 3 && (
@@ -801,52 +788,50 @@ export function TimetableImport({
                     <WeeklySummary draft={draft} />
                     {plan && plan.savedSummary.hours !== stats.hours && (
                       <p className="review-note">
-                        بعد الاحتفاظ بالنسخ المحفوظة سيكون إجمالي ساعات المقررات
-                        المراجعة {plan.savedSummary.hours} بدلاً من{" "}
-                        {stats.hours} في المسودة.
+                        {tr("text_103")}
+                        {plan.savedSummary.hours} {tr("text_104")} {stats.hours}{" "}
+                        {tr("text_105")}
                       </p>
                     )}
                     <Findings
-                      title="أخطاء تمنع الحفظ"
+                      title={tr("text_106")}
                       items={stats.errors}
                       danger
                     />
                     <Findings
-                      title="تداخلات زمنية"
+                      title={tr("text_107")}
                       items={stats.overlaps}
                       danger
                     />
                     <Findings
-                      title="انتقالات بلا فاصل زمني (ليست تداخلاً)"
+                      title={tr("text_108")}
                       items={stats.transitions}
                     />
                     <Findings
-                      title="حقول غير مؤكدة"
+                      title={tr("text_109")}
                       items={stats.unconfirmed}
                     />
-                    <Findings
-                      title="معلومات اختيارية مفقودة"
-                      items={stats.missing}
-                    />
-                    <p className="review-note">
-                      يمكن حفظ المعلومات الاختيارية غير المعروفة. التداخلات
-                      تحتاج انتباهك، ولا تُساوى بجلسات متتالية بفاصل صفر دقيقة.
-                    </p>
+                    <Findings title={tr("text_110")} items={stats.missing} />
+                    <p className="review-note">{tr("text_111")}</p>
                     {plan && (
                       <>
                         <p>
-                          {plan.existingKeys.length} سجلات موجودة ستُتخطى دون
-                          استبدال تعديلاتك.
+                          {plan.existingKeys.length} {tr("text_112")}
                         </p>
                         {plan.differences.map((difference) => (
                           <section className="review-card" key={difference.key}>
-                            <h3>اختلاف عن المحفوظ: {difference.label}</h3>
+                            <h3>
+                              {tr("text_113")}
+                              {difference.label}
+                            </h3>
                             <div className="difference-list">
                               {difference.fields.map((field) => (
-                                <p key={field.field}>
-                                  <strong>{field.field}</strong>: المسودة{" "}
-                                  <bdi>{field.incoming}</bdi>؛ المحفوظ{" "}
-                                  <bdi>{field.existing}</bdi>
+                                <p key={translateMessage(field.field)}>
+                                  <strong>{field.field}</strong>
+                                  {tr("text_114")}{" "}
+                                  <bdi>{translateMessage(field.incoming)}</bdi>
+                                  {tr("text_115")}{" "}
+                                  <bdi>{translateMessage(field.existing)}</bdi>
                                 </p>
                               ))}
                             </div>
@@ -864,12 +849,9 @@ export function TimetableImport({
                                   )
                                 }
                               />
-                              أحتفظ بالنسخة المحفوظة دون تغيير
+                              {tr("text_116")}
                             </label>
-                            <p className="review-note">
-                              أو ارجع لتعديل المسودة أو استبعاد الصف. الاستيراد
-                              لا يستبدل بياناتك المحفوظة.
-                            </p>
+                            <p className="review-note">{tr("text_117")}</p>
                           </section>
                         ))}
                       </>
@@ -879,36 +861,29 @@ export function TimetableImport({
                 {step === 4 && (
                   <section className="review-card">
                     <FileCheck2 size={28} aria-hidden="true" />
-                    <h3>لن يُحفظ شيء قبل تأكيدك</h3>
-                    <p>
-                      سيُحفظ الفصل والمقررات والجلسات وروابط المصدر معاً.
-                      السجلات الموجودة ستبقى كما هي. استبعاد صف من المسودة لا
-                      يحذفه من قاعدة البيانات.
-                    </p>
+                    <h3>{tr("text_118")}</h3>
+                    <p>{tr("text_119")}</p>
                     <label className="review-choice">
                       <input
                         type="checkbox"
                         checked={confirmed}
                         onChange={(event) => setConfirmed(event.target.checked)}
                       />
-                      راجعت البيانات والحقول غير المؤكدة وأوافق على الحفظ المحلي
+                      {tr("text_120")}
                     </label>
                     <button
                       className="save-import"
                       disabled={!confirmed || !plan}
                       onClick={() => void save()}
                     >
-                      {busy ? "جارٍ الحفظ…" : "تأكيد وحفظ الجدول محلياً"}
+                      {busy ? tr("text_121") : tr("text_122")}
                     </button>
                   </section>
                 )}
               </>
             )}
           </fieldset>
-          <nav
-            className="review-actions"
-            aria-label="التنقل بين خطوات المراجعة"
-          >
+          <nav className="review-actions" aria-label={tr("text_123")}>
             <button
               disabled={step === 0 || busy}
               onClick={() => {
@@ -918,14 +893,14 @@ export function TimetableImport({
                 setError("");
               }}
             >
-              السابق
+              {tr("text_124")}
             </button>
             {step < 4 && (
               <button
                 disabled={!ready || blocked || busy}
                 onClick={() => void next()}
               >
-                {busy ? "جارٍ الفحص…" : "التالي"}
+                {busy ? tr("text_125") : tr("text_126")}
               </button>
             )}
           </nav>

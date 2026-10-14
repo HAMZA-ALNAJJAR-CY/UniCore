@@ -42,6 +42,16 @@ New management labels/messages are centralized in `features/timetable/messages.t
 
 ## Planned
 
+## Phase 2 dashboard, calendar and localization
+
+`Dashboard.tsx` and `Calendar.tsx` share `useTimetable`, a mount/term-selection/manual-refresh reader of the existing public getTimetable service. No database writes, Blob reads or schema changes are introduced. Dashboard state derives statistics and daily sessions from the selected snapshot. A one-second browser-local clock drives status/countdown display with interval cleanup; it does not refetch records. The calendar presents chronologically ordered daily agendas within a weekly overview and a selected-day mobile view. It links to existing management cards via stable course anchors. Monthly views and hour-lane positioning are not implemented.
+
+`features/timetable/time.ts` provides testable ISO weekday/local-date arithmetic, date-bound recurrence, session states and future occurrence selection. Exact start is ongoing; exact end is complete. The next card lists in-progress sessions separately and counts down only to future starts, including other days. No academicYear-derived dates, timezone, holidays or attendance completion are invented. Status describes scheduled time only. Recent activity is omitted because no event log exists.
+
+`i18n/locale.ts` uses a small external React store and a localStorage preference (Arabic fallback); no dependency or migration is required. `catalog.json` holds stable numbered translation keys for migrated system messages; `daily.ts` holds semantic dashboard/calendar keys. Lazy catalogs update constants without remounting editors. Already-visible system errors are reformatted through catalog patterns while dynamic arguments remain unchanged. Missing keys fall back safely; dates/numbers use Intl. Source draft values, academic names, notes and codes are never rewritten. Language preference is per origin; cross-tab language/data subscriptions are not claimed.
+
+Phase 2 supersedes the earlier language/dashboard/calendar deferrals. Out of scope remain monthly calendar, activity tracking, term editing, lecture/material workspaces, PWA, authentication/cloud synchronization, backup/restore and AI.
+
 Service worker caching, installable PWA manifest, cloud sync, authentication, integrations, term/lecture/material editing, complete language switching and backup/restore need later-phase implementation. Dexie local persistence, timetable review/import and course/session management exist; no cloud database is configured. AI belongs to V2.
 
 Production hosts must provide history fallback to `index.html`. The shell is not evidence of offline access or storage support.

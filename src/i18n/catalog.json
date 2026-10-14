@@ -1,0 +1,906 @@
+{
+  "text_0": {
+    "ar": "التنقل للجوال",
+    "en": "Mobile navigation"
+  },
+  "text_1": {
+    "ar": "التنقل الرئيسي",
+    "en": "Primary navigation"
+  },
+  "text_2": {
+    "ar": "مراجعة الجدول الدراسي",
+    "en": "Timetable review"
+  },
+  "text_3": {
+    "ar": "الصفحة غير موجودة",
+    "en": "Page not found"
+  },
+  "text_4": {
+    "ar": "الانتقال إلى المحتوى",
+    "en": "Skip to content"
+  },
+  "text_5": {
+    "ar": "حياتك الأكاديمية،",
+    "en": "Your academic life,"
+  },
+  "text_6": {
+    "ar": "تحت السيطرة.",
+    "en": "under control."
+  },
+  "text_7": {
+    "ar": "مراجعة الجدول · محلياً",
+    "en": "Your timetable · locally"
+  },
+  "text_8": {
+    "ar": "المزامنة والعمل كتطبيق دون اتصال مخططان.",
+    "en": "Cloud sync and offline application loading are planned."
+  },
+  "text_9": {
+    "ar": "تنظيم أبسط. تركيز أكبر.",
+    "en": "Less clutter. More focus."
+  },
+  "text_10": {
+    "ar": "معاينة UniCore",
+    "en": "UniCore preview"
+  },
+  "text_11": {
+    "ar": "لوحة التحكم",
+    "en": "Dashboard"
+  },
+  "text_12": {
+    "ar": "المقررات",
+    "en": "Courses"
+  },
+  "text_13": {
+    "ar": "التقويم",
+    "en": "Calendar"
+  },
+  "text_14": {
+    "ar": "المحاضرات",
+    "en": "Lectures"
+  },
+  "text_15": {
+    "ar": "المواد",
+    "en": "Materials"
+  },
+  "text_16": {
+    "ar": "مساحتك الأكاديمية",
+    "en": "Your academic space"
+  },
+  "text_17": {
+    "ar": "مخطط",
+    "en": "Planned"
+  },
+  "text_18": {
+    "ar": "هذه المساحة مخططة لمرحلة لاحقة.",
+    "en": "This space is planned for a later phase."
+  },
+  "text_19": {
+    "ar": "هذا العنوان لا يشير إلى صفحة في UniCore.",
+    "en": "This address does not point to a UniCore page."
+  },
+  "text_20": {
+    "ar": "لنعد إلى مساحتك الأكاديمية.",
+    "en": "Return to your academic space."
+  },
+  "text_21": {
+    "ar": "قد تكون الصفحة انتقلت أو أن العنوان غير صحيح.",
+    "en": "The page may have moved or the address may be incorrect."
+  },
+  "text_22": {
+    "ar": "العودة إلى لوحة التحكم",
+    "en": "Back to Dashboard"
+  },
+  "text_23": {
+    "ar": "نظرة منظمة على الفصل الدراسي.",
+    "en": "An organized view of your semester."
+  },
+  "text_24": {
+    "ar": "تقويمك الأكاديمي قريباً",
+    "en": "Your academic calendar is coming soon"
+  },
+  "text_25": {
+    "ar": "الفعاليات وعرض الجدول وإدارة التقويم مخططة لمرحلة لاحقة.",
+    "en": "Events and calendar management are planned for a later phase."
+  },
+  "text_26": {
+    "ar": "كل محاضرة وأفكارها في مكان واحد.",
+    "en": "Every lecture and its ideas in one place."
+  },
+  "text_27": {
+    "ar": "مساحة لكل محاضرة",
+    "en": "A space for every lecture"
+  },
+  "text_28": {
+    "ar": "واجهات المحاضرات والملاحظات والمرفقات والعد التنازلي مخططة لمرحلة لاحقة.",
+    "en": "Lecture workspaces, notes and attachments are planned for a later phase."
+  },
+  "text_29": {
+    "ar": "مصادرك الدراسية في مكان واحد.",
+    "en": "Your study resources in one place."
+  },
+  "text_30": {
+    "ar": "مكتبتك الدراسية تبدأ هنا",
+    "en": "Your library starts here"
+  },
+  "text_31": {
+    "ar": "واجهات المستندات وتنظيم المصادر والوصول كتطبيق دون اتصال مخططة لمرحلة لاحقة.",
+    "en": "Document organization and offline application loading are planned for a later phase."
+  },
+  "text_32": {
+    "ar": "بيانات الفصل",
+    "en": "Term details"
+  },
+  "text_33": {
+    "ar": "الجلسات الأسبوعية",
+    "en": "Weekly sessions"
+  },
+  "text_34": {
+    "ar": "المراجعة النهائية",
+    "en": "Final review"
+  },
+  "text_35": {
+    "ar": "التأكيد والحفظ",
+    "en": "Confirm and save"
+  },
+  "text_36": {
+    "ar": "تعذر ترحيل هويات قديمة متعارضة. بياناتك الأصلية محفوظة. لا تمسح بيانات الموقع؛ اطلب مراجعة المطور وفق ملف RECOVERY.md ثم أعد المحاولة.",
+    "en": "Legacy identities conflict. Original data is retained. Do not clear site data; ask a developer to follow RECOVERY.md."
+  },
+  "text_37": {
+    "ar": "مساحة التخزين غير كافية. لم تُحفظ أي سجلات جديدة. حرر مساحة ثم أعد المراجعة والمحاولة.",
+    "en": "Storage is full. No new records were saved. Free space and review again."
+  },
+  "text_38": {
+    "ar": "تعارضت البيانات أو تغيرت منذ المراجعة. راجع الحقول والبيانات المحفوظة قبل إعادة التأكيد.",
+    "en": "Data conflicts or changed since review. Check the fields and saved records before confirming again."
+  },
+  "text_39": {
+    "ar": "تعذر الوصول إلى التخزين المحلي. لم تُحفظ أي سجلات جديدة. أعد المحاولة دون مسح بيانات الموقع.",
+    "en": "Local storage is unavailable. No new records were saved. Retry without clearing site data."
+  },
+  "text_40": {
+    "ar": "الحقول غير المؤكدة (",
+    "en": "Unconfirmed fields ("
+  },
+  "text_41": {
+    "ar": " غير مؤكد",
+    "en": " unconfirmed"
+  },
+  "text_42": {
+    "ar": "لا توجد ملاحظات في هذه الفئة.",
+    "en": "No findings in this category."
+  },
+  "text_43": {
+    "ar": "ملخص الجلسات الأسبوعية",
+    "en": "Weekly session summary"
+  },
+  "text_44": {
+    "ar": "الجلسات التي راجعتها",
+    "en": "Sessions you reviewed"
+  },
+  "text_45": {
+    "ar": "المقرر",
+    "en": "Course"
+  },
+  "text_46": {
+    "ar": "اليوم",
+    "en": "Day"
+  },
+  "text_47": {
+    "ar": "الوقت (24 ساعة)",
+    "en": "Time (24 hour)"
+  },
+  "text_48": {
+    "ar": "القاعة",
+    "en": "Room"
+  },
+  "text_49": {
+    "ar": "الحضور",
+    "en": "Attendance"
+  },
+  "text_50": {
+    "ar": "ارتباط غير صالح",
+    "en": "Invalid relationship"
+  },
+  "text_51": {
+    "ar": "غير معروف",
+    "en": "Unknown"
+  },
+  "text_52": {
+    "ar": "إلكتروني",
+    "en": "Online"
+  },
+  "text_53": {
+    "ar": "وجاهي",
+    "en": "In person"
+  },
+  "text_54": {
+    "ar": "صحح البيانات ثم ارجع إلى الجلسات وأعد المراجعة النهائية.",
+    "en": "Correct the data, return to sessions and repeat final review."
+  },
+  "text_55": {
+    "ar": "اختر الاحتفاظ بكل سجل محفوظ مختلف، أو ارجع لتعديل/استبعاد بيانات المسودة. لن نستبدل تعديلاتك تلقائياً.",
+    "en": "Keep every differing saved record explicitly, or return to edit/exclude draft rows. Existing edits will not be replaced."
+  },
+  "text_56": {
+    "ar": "تغيرت البيانات أو رُفض أحد السجلات. لم تُحفظ أي سجلات جديدة. ارجع إلى المراجعة قبل إعادة التأكيد.",
+    "en": "Data changed or a record was rejected. No new records were saved. Review again before confirming."
+  },
+  "text_57": {
+    "ar": "اكتمل الحفظ: {0} سجل جديد، و{1} سجل موجود احتُفظ به دون تغيير. لم تُنشأ أي محاضرات فعلية.",
+    "en": "Saved: {0} new records; {1} existing records retained unchanged. No actual lectures were created."
+  },
+  "text_58": {
+    "ar": "استيراد محلي بعد المراجعة",
+    "en": "Local import after review"
+  },
+  "text_59": {
+    "ar": "مسودة من الجدول المقدم، وليست بيانات مؤكدة. لن تُحفظ المقررات أو الجلسات إلا بعد تأكيدك الصريح.",
+    "en": "Draft from the supplied timetable, subject to confirmation. Courses and sessions are saved only after explicit confirmation."
+  },
+  "text_60": {
+    "ar": "خطوات الاستيراد",
+    "en": "Import steps"
+  },
+  "text_61": {
+    "ar": "جارٍ فحص التخزين والروابط السابقة…",
+    "en": "Checking storage and previous mappings…"
+  },
+  "text_62": {
+    "ar": "حُفظت المراجعة محلياً",
+    "en": "Review saved locally"
+  },
+  "text_63": {
+    "ar": "مراجعة المسودة مجدداً",
+    "en": "Review the draft again"
+  },
+  "text_64": {
+    "ar": "اسم الفصل",
+    "en": "Term name"
+  },
+  "text_65": {
+    "ar": "العام الدراسي",
+    "en": "Academic year"
+  },
+  "text_66": {
+    "ar": "رقم الفصل",
+    "en": "Semester number"
+  },
+  "text_67": {
+    "ar": "الكلية (اختياري)",
+    "en": "College (optional)"
+  },
+  "text_68": {
+    "ar": "التخصص (اختياري)",
+    "en": "Program (optional)"
+  },
+  "text_69": {
+    "ar": "بداية الفصل (اختيارية)",
+    "en": "Term start (optional)"
+  },
+  "text_70": {
+    "ar": "نهاية الفصل (اختيارية)",
+    "en": "Term end (optional)"
+  },
+  "text_71": {
+    "ar": "الفصل المحفوظ المستهدف",
+    "en": "Target saved term"
+  },
+  "text_72": {
+    "ar": "تحديد تلقائي آمن حسب الربط أو العام والفصل",
+    "en": "Resolve safely from mappings or academic year/semester"
+  },
+  "text_73": {
+    "ar": "المصدر يسجل 15 ساعة. الإجمالي أدناه يُحسب من المقررات بعد تعديلاتك. لا توجد تواريخ فصل أو منطقة زمنية مفترضة.",
+    "en": "The source lists 15 credits. Totals below reflect your edits. No term dates or timezone are assumed."
+  },
+  "text_74": {
+    "ar": "المدرس والشعبة اختياريان. لا تدمج مقرر البرمجة ومختبره؛ لكل منهما رمز مستقل.",
+    "en": "Instructor and section are optional. Programming and its lab have separate course codes."
+  },
+  "text_75": {
+    "ar": "المقرر {0}",
+    "en": "Course {0}"
+  },
+  "text_76": {
+    "ar": "مقرر جديد",
+    "en": "New course"
+  },
+  "text_77": {
+    "ar": "اسم المقرر",
+    "en": "Course name"
+  },
+  "text_78": {
+    "ar": "رمز المقرر",
+    "en": "Course code"
+  },
+  "text_79": {
+    "ar": "اسم المدرس (اختياري)",
+    "en": "Instructor name (optional)"
+  },
+  "text_80": {
+    "ar": "الشعبة (اختيارية)",
+    "en": "Section (optional)"
+  },
+  "text_81": {
+    "ar": "الساعات المسجلة",
+    "en": "Registered credits"
+  },
+  "text_82": {
+    "ar": "النشاط",
+    "en": "Activity"
+  },
+  "text_83": {
+    "ar": "غير مؤكد",
+    "en": "Unconfirmed"
+  },
+  "text_84": {
+    "ar": "نظري",
+    "en": "Theory"
+  },
+  "text_85": {
+    "ar": "عملي",
+    "en": "Practical"
+  },
+  "text_86": {
+    "ar": "استبعاد المقرر وجلساته من المسودة",
+    "en": "Exclude course and its draft sessions"
+  },
+  "text_87": {
+    "ar": "إضافة مقرر",
+    "en": "Add course"
+  },
+  "text_88": {
+    "ar": "الأوقات بصيغة 24 ساعة. الأيام الأخرى غير مذكورة في المصدر؛ لا يعني ذلك خلوها من الالتزامات.",
+    "en": "Times use 24-hour format. Unlisted days may still contain other commitments."
+  },
+  "text_89": {
+    "ar": "الجلسة {0}",
+    "en": "Session {0}"
+  },
+  "text_90": {
+    "ar": "الجلسة ",
+    "en": "Session "
+  },
+  "text_91": {
+    "ar": "المقرر المرتبط",
+    "en": "Associated course"
+  },
+  "text_92": {
+    "ar": "اختر مقرراً",
+    "en": "Select a course"
+  },
+  "text_93": {
+    "ar": "وقت البداية (HH:mm)",
+    "en": "Start time (HH:mm)"
+  },
+  "text_94": {
+    "ar": "وقت النهاية (HH:mm)",
+    "en": "End time (HH:mm)"
+  },
+  "text_95": {
+    "ar": "القاعة أو الموقع (اختياري)",
+    "en": "Room or location (optional)"
+  },
+  "text_96": {
+    "ar": "نمط الحضور",
+    "en": "Delivery mode"
+  },
+  "text_97": {
+    "ar": "ملاحظة المصدر (اختيارية)",
+    "en": "Source note (optional)"
+  },
+  "text_98": {
+    "ar": "استبعاد الجلسة من المسودة",
+    "en": "Exclude draft session"
+  },
+  "text_99": {
+    "ar": "إضافة جلسة",
+    "en": "Add session"
+  },
+  "text_100": {
+    "ar": "مقررات",
+    "en": "courses"
+  },
+  "text_101": {
+    "ar": "ساعات المقررات المراجعة",
+    "en": "Reviewed course credits"
+  },
+  "text_102": {
+    "ar": "جلسات أسبوعية",
+    "en": "weekly sessions"
+  },
+  "text_103": {
+    "ar": "بعد الاحتفاظ بالنسخ المحفوظة سيكون إجمالي ساعات المقررات المراجعة ",
+    "en": "Keeping saved records results in reviewed course credits of "
+  },
+  "text_104": {
+    "ar": " بدلاً من",
+    "en": " instead of"
+  },
+  "text_105": {
+    "ar": " في المسودة.",
+    "en": " in the draft."
+  },
+  "text_106": {
+    "ar": "أخطاء تمنع الحفظ",
+    "en": "Errors blocking save"
+  },
+  "text_107": {
+    "ar": "تداخلات زمنية",
+    "en": "Time overlaps"
+  },
+  "text_108": {
+    "ar": "انتقالات بلا فاصل زمني (ليست تداخلاً)",
+    "en": "Zero-minute transitions (not overlaps)"
+  },
+  "text_109": {
+    "ar": "حقول غير مؤكدة",
+    "en": "Unconfirmed fields"
+  },
+  "text_110": {
+    "ar": "معلومات اختيارية مفقودة",
+    "en": "Missing optional information"
+  },
+  "text_111": {
+    "ar": "يمكن حفظ المعلومات الاختيارية غير المعروفة. التداخلات تحتاج انتباهك، ولا تُساوى بجلسات متتالية بفاصل صفر دقيقة.",
+    "en": "Unknown optional details can be saved. Review overlaps separately from consecutive sessions with no gap."
+  },
+  "text_112": {
+    "ar": " سجلات موجودة ستُتخطى دون استبدال تعديلاتك.",
+    "en": " existing records will be skipped without replacing your edits."
+  },
+  "text_113": {
+    "ar": "اختلاف عن المحفوظ:",
+    "en": "Difference from saved:"
+  },
+  "text_114": {
+    "ar": ": المسودة",
+    "en": ": draft"
+  },
+  "text_115": {
+    "ar": "؛ المحفوظ",
+    "en": "; saved"
+  },
+  "text_116": {
+    "ar": "أحتفظ بالنسخة المحفوظة دون تغيير",
+    "en": "Keep the saved record unchanged"
+  },
+  "text_117": {
+    "ar": "أو ارجع لتعديل المسودة أو استبعاد الصف. الاستيراد لا يستبدل بياناتك المحفوظة.",
+    "en": "Or return to edit/exclude the draft row. Import never replaces saved academic values."
+  },
+  "text_118": {
+    "ar": "لن يُحفظ شيء قبل تأكيدك",
+    "en": "Nothing is saved until you confirm"
+  },
+  "text_119": {
+    "ar": "سيُحفظ الفصل والمقررات والجلسات وروابط المصدر معاً. السجلات الموجودة ستبقى كما هي. استبعاد صف من المسودة لا يحذفه من قاعدة البيانات.",
+    "en": "The term, courses, sessions and mappings are saved together. Existing records stay unchanged. Excluding a draft row does not delete it from storage."
+  },
+  "text_120": {
+    "ar": "راجعت البيانات والحقول غير المؤكدة وأوافق على الحفظ المحلي",
+    "en": "I reviewed the data and unconfirmed fields and approve local saving"
+  },
+  "text_121": {
+    "ar": "جارٍ الحفظ…",
+    "en": "Saving…"
+  },
+  "text_122": {
+    "ar": "تأكيد وحفظ الجدول محلياً",
+    "en": "Confirm and save timetable locally"
+  },
+  "text_123": {
+    "ar": "التنقل بين خطوات المراجعة",
+    "en": "Review step navigation"
+  },
+  "text_124": {
+    "ar": "السابق",
+    "en": "Previous"
+  },
+  "text_125": {
+    "ar": "جارٍ الفحص…",
+    "en": "Checking…"
+  },
+  "text_126": {
+    "ar": "التالي",
+    "en": "Next"
+  },
+  "text_127": {
+    "ar": "مقرراتك وجلساتك الأسبوعية، مع تعديل مباشر وحفظ محلي.",
+    "en": "Your courses and weekly sessions, with direct editing and local persistence."
+  },
+  "text_128": {
+    "ar": "مراجعة واستيراد الجدول",
+    "en": "Review and import timetable"
+  },
+  "text_129": {
+    "ar": "جارٍ تحميل الجدول…",
+    "en": "Loading timetable…"
+  },
+  "text_130": {
+    "ar": "تحديث البيانات",
+    "en": "Refresh data"
+  },
+  "text_131": {
+    "ar": "الفصل الدراسي",
+    "en": "Academic term"
+  },
+  "text_132": {
+    "ar": "لا يوجد فصل محفوظ بعد. راجع واستورد جدولك للبدء.",
+    "en": "No saved term yet. Review and import your timetable to get started."
+  },
+  "text_133": {
+    "ar": "لا توجد مقررات محفوظة في هذا الفصل.",
+    "en": "No saved courses in this term."
+  },
+  "text_134": {
+    "ar": "لا توجد جلسات أسبوعية لهذا المقرر.",
+    "en": "No weekly sessions for this course."
+  },
+  "text_135": {
+    "ar": "عرض المقررات",
+    "en": "Course view"
+  },
+  "text_136": {
+    "ar": "الجدول الأسبوعي",
+    "en": "Weekly timetable"
+  },
+  "text_137": {
+    "ar": "طريقة العرض",
+    "en": "View mode"
+  },
+  "text_138": {
+    "ar": "تعديل المقرر",
+    "en": "Edit course"
+  },
+  "text_139": {
+    "ar": "حذف المقرر",
+    "en": "Remove course"
+  },
+  "text_140": {
+    "ar": "تعديل الجلسة",
+    "en": "Edit session"
+  },
+  "text_141": {
+    "ar": "حذف الجلسة",
+    "en": "Remove session"
+  },
+  "text_142": {
+    "ar": "المدرس (اختياري)",
+    "en": "Instructor (optional)"
+  },
+  "text_143": {
+    "ar": "الساعات المعتمدة",
+    "en": "Credit hours"
+  },
+  "text_144": {
+    "ar": "نوع النشاط",
+    "en": "Activity type"
+  },
+  "text_145": {
+    "ar": "وقت البداية (24 ساعة)",
+    "en": "Start time (24 hour)"
+  },
+  "text_146": {
+    "ar": "وقت النهاية (24 ساعة)",
+    "en": "End time (24 hour)"
+  },
+  "text_147": {
+    "ar": "القاعة (اختياري)",
+    "en": "Room (optional)"
+  },
+  "text_148": {
+    "ar": "حفظ",
+    "en": "Save"
+  },
+  "text_149": {
+    "ar": "إلغاء",
+    "en": "Cancel"
+  },
+  "text_150": {
+    "ar": "تم الحفظ بنجاح.",
+    "en": "Saved successfully."
+  },
+  "text_151": {
+    "ar": "تم الحذف من الجدول. بقيت السجلات محفوظة للحماية من فقدان البيانات.",
+    "en": "Removed from the timetable. Records remain retained to protect against data loss."
+  },
+  "text_152": {
+    "ar": "أدخل الاسم والرمز وساعات معتمدة صالحة غير سالبة.",
+    "en": "Enter a name, code and valid non-negative credit hours."
+  },
+  "text_153": {
+    "ar": "اختر يوماً صحيحاً ووقتاً بصيغة HH:mm، على أن تكون النهاية بعد البداية.",
+    "en": "Choose a valid day and HH:mm times, with the end after the start."
+  },
+  "text_154": {
+    "ar": "توجد جلسات متداخلة:",
+    "en": "Overlapping sessions:"
+  },
+  "text_155": {
+    "ar": "راجعت التداخلات وأريد حفظ هذه الجلسة رغم التعارض.",
+    "en": "I reviewed these overlaps and want to save this session despite the conflict."
+  },
+  "text_156": {
+    "ar": "الجلسات المتتالية دون فاصل ليست تداخلاً.",
+    "en": "Back-to-back sessions are not overlaps."
+  },
+  "text_157": {
+    "ar": "لا توجد جلسات مسجلة لهذا اليوم؛ قد تكون لديك التزامات أخرى.",
+    "en": "No recorded sessions for this day; you may have other commitments."
+  },
+  "text_158": {
+    "ar": "تأكيد الحذف",
+    "en": "Confirm removal"
+  },
+  "text_159": {
+    "ar": "سيُحذف المقرر و{0} من جلساته الأسبوعية من العرض. لن تُحذف محاضرات أو مواد أو مرفقات.",
+    "en": "The course and {0} weekly sessions will be removed from view. No lectures, materials or attachments will be deleted."
+  },
+  "text_160": {
+    "ar": "ستُحذف هذه الجلسة الأسبوعية من العرض بعد التأكيد. لن تُحذف المحاضرات المرتبطة بها.",
+    "en": "This weekly session will be removed after confirmation. Linked historical lectures will not be deleted."
+  },
+  "text_161": {
+    "ar": "تعذر الحذف لوجود محاضرات تاريخية أو مواد مرتبطة. بقيت المحاضرات والملاحظات والمرفقات دون تغيير. تحتاج هذه العلاقات إلى معالجة صريحة قبل الحذف.",
+    "en": "Removal is blocked by historical lectures or materials. Notes and attachments are unchanged. Resolve these relationships explicitly first."
+  },
+  "text_162": {
+    "ar": "تغيرت البيانات منذ تحميلها، أو تغيرت التداخلات. ألغِ التحرير ثم حدّث البيانات وراجع أحدث نسخة قبل إعادة المحاولة.",
+    "en": "Data or overlaps changed since loading. Cancel editing, refresh and review the latest version before retrying."
+  },
+  "text_163": {
+    "ar": "رمز المقرر محجوز لمقرر آخر في هذا الفصل، بما في ذلك المقررات المحذوفة سابقاً.",
+    "en": "This course code is reserved in this term, including by a previously removed course."
+  },
+  "text_164": {
+    "ar": "توجد جلسة مطابقة للمقرر في اليوم والوقت نفسيهما. عدّل الجلسة الموجودة بدلاً من تكرارها.",
+    "en": "An identical session already exists for this course/day/time. Edit that session instead."
+  },
+  "text_165": {
+    "ar": "بعض الحقول أو العلاقات غير صالحة. راجع المدخلات قبل الحفظ.",
+    "en": "Some fields or relationships are invalid. Review your inputs before saving."
+  },
+  "text_166": {
+    "ar": "تعذر الوصول إلى التخزين المحلي. أعد المحاولة دون مسح بيانات الموقع.",
+    "en": "Local storage is unavailable. Retry without clearing site data."
+  },
+  "text_167": {
+    "ar": "مساحة التخزين غير كافية. لم يُحفظ التغيير؛ حرر مساحة ثم أعد المحاولة.",
+    "en": "Storage is full. The change was not saved; free space and retry."
+  },
+  "text_168": {
+    "ar": "توجد هويات قديمة متعارضة. بياناتك محفوظة؛ لا تمسحها. اطلب مراجعة المطور وفق RECOVERY.md.",
+    "en": "Legacy identities conflict. Data is retained; do not clear it. Ask a developer to follow RECOVERY.md."
+  },
+  "text_169": {
+    "ar": "تعديل السجل يحافظ على هويته ومرفقاته. إعادة الاستيراد لا تستبدل تعديلاتك.",
+    "en": "Editing preserves record identity and attachments. Re-import does not replace your changes."
+  },
+  "text_170": {
+    "ar": "لتحديث تغييرات نافذة أخرى، أغلق التحرير واستخدم تحديث البيانات.",
+    "en": "To see changes from another tab, close the editor and refresh data."
+  },
+  "text_171": {
+    "ar": "{0} ساعة معتمدة",
+    "en": "{0} credits"
+  },
+  "text_172": {
+    "ar": "الشعبة: {0}",
+    "en": "Section: {0}"
+  },
+  "text_173": {
+    "ar": "الاثنين",
+    "en": "Monday"
+  },
+  "text_174": {
+    "ar": "الثلاثاء",
+    "en": "Tuesday"
+  },
+  "text_175": {
+    "ar": "الأربعاء",
+    "en": "Wednesday"
+  },
+  "text_176": {
+    "ar": "الخميس",
+    "en": "Thursday"
+  },
+  "text_177": {
+    "ar": "الجمعة",
+    "en": "Friday"
+  },
+  "text_178": {
+    "ar": "السبت",
+    "en": "Saturday"
+  },
+  "text_179": {
+    "ar": "الأحد",
+    "en": "Sunday"
+  },
+  "text_180": {
+    "ar": "الاسم",
+    "en": "Name"
+  },
+  "text_181": {
+    "ar": "المدرس",
+    "en": "Instructor"
+  },
+  "text_182": {
+    "ar": "الشعبة",
+    "en": "Section"
+  },
+  "text_183": {
+    "ar": "الساعات",
+    "en": "Credits"
+  },
+  "text_184": {
+    "ar": "الفصل",
+    "en": "Semester"
+  },
+  "text_185": {
+    "ar": "الكلية",
+    "en": "College"
+  },
+  "text_186": {
+    "ar": "التخصص",
+    "en": "Program"
+  },
+  "text_187": {
+    "ar": "بداية الفصل",
+    "en": "Term start"
+  },
+  "text_188": {
+    "ar": "نهاية الفصل",
+    "en": "Term end"
+  },
+  "text_189": {
+    "ar": "البداية",
+    "en": "Start"
+  },
+  "text_190": {
+    "ar": "النهاية",
+    "en": "End"
+  },
+  "text_191": {
+    "ar": "ملاحظة المصدر",
+    "en": "Source note"
+  },
+  "text_192": {
+    "ar": "الموقع",
+    "en": "Location"
+  },
+  "text_193": {
+    "ar": "أكمل اسم الفصل والعام الدراسي ورقم الفصل الصحيح.",
+    "en": "Complete the term name, academic year and valid semester number."
+  },
+  "text_194": {
+    "ar": "{0} غير صالح.",
+    "en": "{0} is invalid."
+  },
+  "text_195": {
+    "ar": "{0} غير معروفة (اختيارية).",
+    "en": "{0} is unknown (optional)."
+  },
+  "text_196": {
+    "ar": "نهاية الفصل تسبق بدايته.",
+    "en": "Term end precedes its start."
+  },
+  "text_197": {
+    "ar": "أضف مقرراً واحداً على الأقل قبل الحفظ.",
+    "en": "Add at least one course before saving."
+  },
+  "text_198": {
+    "ar": "يوجد تكرار في هوية مقرر بالمسودة.",
+    "en": "Duplicate course identity in the draft."
+  },
+  "text_199": {
+    "ar": "بيانات المقرر {0} غير مكتملة: الاسم والرمز والساعات مطلوبة.",
+    "en": "Course {0} is incomplete: name, code and credits are required."
+  },
+  "text_200": {
+    "ar": "رمز المقرر {0} مكرر داخل الفصل.",
+    "en": "Course code {0} is duplicated in this term."
+  },
+  "text_201": {
+    "ar": "{0}: المدرس غير معروف (اختياري).",
+    "en": "{0}: instructor unknown (optional)."
+  },
+  "text_202": {
+    "ar": "{0}: النشاط غير صالح.",
+    "en": "{0}: invalid activity."
+  },
+  "text_203": {
+    "ar": "{0}: الشعبة غير معروفة (اختيارية).",
+    "en": "{0}: section unknown (optional)."
+  },
+  "text_204": {
+    "ar": "مقرر غير مرتبط",
+    "en": "Unlinked course"
+  },
+  "text_205": {
+    "ar": "يوم غير صالح",
+    "en": "Invalid day"
+  },
+  "text_206": {
+    "ar": "يوجد تكرار في هوية جلسة بالمسودة.",
+    "en": "Duplicate session identity in the draft."
+  },
+  "text_207": {
+    "ar": "{0}: اختر مقرراً من قائمة المقررات المراجعة.",
+    "en": "{0}: select a course from the reviewed course list."
+  },
+  "text_208": {
+    "ar": "{0}: نمط الحضور غير صالح.",
+    "en": "{0}: invalid delivery mode."
+  },
+  "text_209": {
+    "ar": "{0}: اليوم أو نطاق الوقت غير صالح؛ استخدم HH:mm ونهاية بعد البداية.",
+    "en": "{0}: invalid day or time range; use HH:mm with end after start."
+  },
+  "text_210": {
+    "ar": "{0}: جلسة أسبوعية مكررة لنفس المقرر.",
+    "en": "{0}: duplicate weekly session for this course."
+  },
+  "text_211": {
+    "ar": "{0}: القاعة/الموقع غير معروف (اختياري).",
+    "en": "{0}: room/location unknown (optional)."
+  },
+  "text_212": {
+    "ar": "؟",
+    "en": "?"
+  },
+  "text_213": {
+    "ar": "هوية مصدر المسودة مطلوبة.",
+    "en": "A draft source identity is required."
+  },
+  "text_214": {
+    "ar": "المصدر مرتبط بهوية محفوظة أخرى. لا يمكن إعادة ربطه بسجل مختلف تلقائياً.",
+    "en": "This source is mapped to another saved identity. It cannot be reassigned automatically."
+  },
+  "text_215": {
+    "ar": "توجد عدة سجلات محفوظة مطابقة. حدد هوية الفصل أو صحح المسودة؛ لن يتم اختيار سجل تلقائياً.",
+    "en": "Multiple saved records match. Select the term or correct the draft; no record will be chosen automatically."
+  },
+  "text_216": {
+    "ar": "ارتباط الاستيراد يشير إلى سجل مفقود. أوقف الحفظ وراجع البيانات؛ لن يتم إنشاء هوية بديلة.",
+    "en": "An import mapping points to a missing record. Review the data; no replacement identity will be created."
+  },
+  "text_217": {
+    "ar": "أحد السجلات المرتبطة محذوف سابقاً. استبعده من المسودة؛ الاستيراد لا يستعيد السجلات المحذوفة.",
+    "en": "A mapped record was previously removed. Exclude it; import does not restore deleted records."
+  },
+  "text_218": {
+    "ar": "مقرر مرتبط بالمصدر نُقل إلى فصل آخر. استبعده وجلساته أو راجع الربط؛ لن يتغير السجل المحفوظ.",
+    "en": "A mapped course moved to another term. Exclude it and its sessions or review the mapping; the saved record will not change."
+  },
+  "text_219": {
+    "ar": "أكثر من مقرر في المسودة يشير إلى الهوية المحفوظة نفسها. استبعد التكرار قبل الحفظ.",
+    "en": "Multiple draft courses refer to the same saved identity. Exclude the duplicate before saving."
+  },
+  "text_220": {
+    "ar": "جلسة مرتبطة بالمصدر موجودة في فصل آخر. راجع الربط قبل الحفظ.",
+    "en": "A mapped session belongs to another term. Review its mapping before saving."
+  },
+  "text_221": {
+    "ar": "جلسات مسودة متعددة تشير إلى الجلسة المحفوظة نفسها. استبعد التكرار قبل الحفظ.",
+    "en": "Multiple draft sessions refer to the same saved session. Exclude the duplicate before saving."
+  },
+  "text_222": {
+    "ar": "أكد مراجعة البيانات قبل الحفظ.",
+    "en": "Confirm your review before saving."
+  },
+  "text_223": {
+    "ar": "تغيرت البيانات المحفوظة منذ المراجعة. أعد المراجعة والتأكيد قبل الحفظ.",
+    "en": "Saved data changed since review. Review and confirm again before saving."
+  },
+  "text_224": {
+    "ar": "راجع الفروق واختر الاحتفاظ بالبيانات المحفوظة أو ارجع لتعديل/استبعاد صفوف المسودة.",
+    "en": "Review differences and keep saved values, or return to edit/exclude draft rows."
+  },
+  "dismiss": {
+    "ar": "إغلاق الإشعار",
+    "en": "Dismiss notification"
+  }
+}

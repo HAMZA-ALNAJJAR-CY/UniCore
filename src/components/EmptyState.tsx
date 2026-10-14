@@ -1,3 +1,4 @@
+import { tr } from "../i18n/locale";
 import type { LucideIcon } from "lucide-react";
 
 export function EmptyState({
@@ -14,10 +15,10 @@ export function EmptyState({
       <span className="icon-tile">
         <Icon size={28} aria-hidden="true" />
       </span>
-      <span className="badge">مخطط</span>
+      <span className="badge">{tr("text_17")}</span>
       <h2>{title}</h2>
       <p>{description}</p>
-      <p className="empty-note">هذه المساحة مخططة لمرحلة لاحقة.</p>
+      <p className="empty-note">{tr("text_18")}</p>
     </section>
   );
 }

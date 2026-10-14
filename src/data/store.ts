@@ -1,3 +1,4 @@
+import { tr } from "../i18n/locale";
 import type { TransactionMode } from "dexie";
 import { UniCoreDatabase } from "./database";
 import { DataError, translateStorageError, type DataErrorCode } from "./errors";
@@ -226,25 +227,19 @@ export class AcademicStore {
     confirmation: { confirmed: boolean; keepExistingKeys: readonly string[] },
   ): Promise<BulkResult> {
     if (confirmation.confirmed !== true)
-      throw new DataError("VALIDATION", "أكد مراجعة البيانات قبل الحفظ.");
+      throw new DataError("VALIDATION", tr("text_222"));
     // Fresh resolution and validation also run inside the write transaction.
     return this.executeBatch(
       async (result) => {
         const fresh = await buildTimetableReview(this.database, review.draft);
         if (fresh.review.snapshot !== review.snapshot)
-          throw new DataError(
-            "CONFLICT",
-            "تغيرت البيانات المحفوظة منذ المراجعة. أعد المراجعة والتأكيد قبل الحفظ.",
-          );
+          throw new DataError("CONFLICT", tr("text_223"));
         if (
           fresh.review.differences.some(
             (row) => !confirmation.keepExistingKeys.includes(row.key),
           )
         )
-          throw new DataError(
-            "CONFLICT",
-            "راجع الفروق واختر الاحتفاظ بالبيانات المحفوظة أو ارجع لتعديل/استبعاد صفوف المسودة.",
-          );
+          throw new DataError("CONFLICT", tr("text_224"));
         await this.processBulk(
           "academicTerms",
           fresh.batch.academicTerms ?? [],

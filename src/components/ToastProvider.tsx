@@ -1,3 +1,4 @@
+import { tr } from "../i18n/locale";
 import {
   useCallback,
   useEffect,
@@ -49,7 +50,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <p>{item.message}</p>
             <button
               type="button"
-              aria-label="Dismiss notification"
+              aria-label={tr("dismiss")}
               onClick={() => dismiss(item.id)}
             >
               <X size={18} aria-hidden="true" />

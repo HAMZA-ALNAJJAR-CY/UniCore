@@ -1,37 +1,38 @@
+import { tr, dynamic } from "../../i18n/locale";
 import type { TimetableDraft } from "../../data/timetable-types";
 
 export const SOURCE_ID = "IMG_20261015_001157:2026-2027:semester-1";
-export const DAYS = [
+export const DAYS = dynamic(() => [
   "",
-  "الاثنين",
-  "الثلاثاء",
-  "الأربعاء",
-  "الخميس",
-  "الجمعة",
-  "السبت",
-  "الأحد",
-];
-export const FIELD_LABELS: Record<string, string> = {
-  name: "الاسم",
-  code: "رمز المقرر",
-  instructor: "المدرس",
-  section: "الشعبة",
-  registeredHours: "الساعات",
-  activityType: "النشاط",
-  academicYear: "العام الدراسي",
-  semester: "الفصل",
-  college: "الكلية",
-  program: "التخصص",
-  startDate: "بداية الفصل",
-  endDate: "نهاية الفصل",
-  dayOfWeek: "اليوم",
-  startTime: "البداية",
-  endTime: "النهاية",
-  room: "القاعة",
-  deliveryMode: "نمط الحضور",
-  notes: "ملاحظة المصدر",
-  location: "الموقع",
-};
+  tr("text_173"),
+  tr("text_174"),
+  tr("text_175"),
+  tr("text_176"),
+  tr("text_177"),
+  tr("text_178"),
+  tr("text_179"),
+]);
+export const FIELD_LABELS: Record<string, string> = dynamic(() => ({
+  name: tr("text_180"),
+  code: tr("text_78"),
+  instructor: tr("text_181"),
+  section: tr("text_182"),
+  registeredHours: tr("text_183"),
+  activityType: tr("text_82"),
+  academicYear: tr("text_65"),
+  semester: tr("text_184"),
+  college: tr("text_185"),
+  program: tr("text_186"),
+  startDate: tr("text_187"),
+  endDate: tr("text_188"),
+  dayOfWeek: tr("text_46"),
+  startTime: tr("text_189"),
+  endTime: tr("text_190"),
+  room: tr("text_48"),
+  deliveryMode: tr("text_96"),
+  notes: tr("text_191"),
+  location: tr("text_192"),
+}));
 
 /** Development-time extraction only. Constructing this object writes nothing. */
 export function sourceDraft(): TimetableDraft {
@@ -143,28 +144,26 @@ export function analyzeDraft(draft: TimetableDraft) {
     !Number.isInteger(draft.term.semester) ||
     draft.term.semester < 1
   )
-    errors.push("أكمل اسم الفصل والعام الدراسي ورقم الفصل الصحيح.");
+    errors.push(tr("text_193"));
   for (const field of ["startDate", "endDate"] as const) {
     const date = draft.term[field];
     if (date && !existsDate(date))
-      errors.push(`${FIELD_LABELS[field]} غير صالح.`);
-    if (!date) missing.push(`${FIELD_LABELS[field]} غير معروفة (اختيارية).`);
+      errors.push(tr("text_194", [FIELD_LABELS[field]]));
+    if (!date) missing.push(tr("text_195", [FIELD_LABELS[field]]));
   }
   if (
     draft.term.startDate &&
     draft.term.endDate &&
     draft.term.startDate > draft.term.endDate
   )
-    errors.push("نهاية الفصل تسبق بدايته.");
-  if (!draft.courses.length)
-    errors.push("أضف مقرراً واحداً على الأقل قبل الحفظ.");
+    errors.push(tr("text_196"));
+  if (!draft.courses.length) errors.push(tr("text_197"));
   const keys = new Set<string>(),
     codes = new Set<string>(),
     sessionKeys = new Set<string>(),
     signatures = new Set<string>();
   for (const course of draft.courses) {
-    if (!course.key || keys.has(course.key))
-      errors.push("يوجد تكرار في هوية مقرر بالمسودة.");
+    if (!course.key || keys.has(course.key)) errors.push(tr("text_198"));
     keys.add(course.key);
     const code = course.code.trim().toUpperCase();
     if (
@@ -174,20 +173,18 @@ export function analyzeDraft(draft: TimetableDraft) {
       course.registeredHours < 0
     )
       errors.push(
-        `بيانات المقرر ${course.name || course.code || "الجديد"} غير مكتملة: الاسم والرمز والساعات مطلوبة.`,
+        tr("text_199", [course.name || course.code || tr("text_76")]),
       );
-    if (codes.has(code)) errors.push(`رمز المقرر ${code} مكرر داخل الفصل.`);
+    if (codes.has(code)) errors.push(tr("text_200", [code]));
     codes.add(code);
-    if (!course.instructor)
-      missing.push(`${course.name}: المدرس غير معروف (اختياري).`);
+    if (!course.instructor) missing.push(tr("text_201", [course.name]));
     if (
       course.activityType != null &&
       course.activityType !== "theory" &&
       course.activityType !== "practical"
     )
-      errors.push(`${course.name}: النشاط غير صالح.`);
-    if (!course.section)
-      missing.push(`${course.name}: الشعبة غير معروفة (اختيارية).`);
+      errors.push(tr("text_202", [course.name]));
+    if (!course.section) missing.push(tr("text_203", [course.name]));
     course.unconfirmed.forEach((field) =>
       unconfirmed.push(
         `${course.name || code}: ${FIELD_LABELS[field] ?? field}`,
@@ -196,17 +193,16 @@ export function analyzeDraft(draft: TimetableDraft) {
   }
   for (const session of draft.sessions) {
     const course = draft.courses.find((row) => row.key === session.courseKey);
-    const label = `${course?.name ?? "مقرر غير مرتبط"} — ${DAYS[session.dayOfWeek] ?? "يوم غير صالح"} ${session.startTime}`;
+    const label = `${course?.name ?? tr("text_204")} — ${DAYS[session.dayOfWeek] ?? tr("text_205")} ${session.startTime}`;
     if (!session.key || sessionKeys.has(session.key))
-      errors.push("يوجد تكرار في هوية جلسة بالمسودة.");
+      errors.push(tr("text_206"));
     sessionKeys.add(session.key);
-    if (!course)
-      errors.push(`${label}: اختر مقرراً من قائمة المقررات المراجعة.`);
+    if (!course) errors.push(tr("text_207", [label]));
     if (
       session.deliveryMode !== "online" &&
       session.deliveryMode !== "in-person"
     )
-      errors.push(`${label}: نمط الحضور غير صالح.`);
+      errors.push(tr("text_208", [label]));
     if (
       !Number.isInteger(session.dayOfWeek) ||
       session.dayOfWeek < 1 ||
@@ -215,20 +211,16 @@ export function analyzeDraft(draft: TimetableDraft) {
       !validTime(session.endTime) ||
       session.startTime >= session.endTime
     )
-      errors.push(
-        `${label}: اليوم أو نطاق الوقت غير صالح؛ استخدم HH:mm ونهاية بعد البداية.`,
-      );
+      errors.push(tr("text_209", [label]));
     const signature = JSON.stringify([
       session.courseKey,
       session.dayOfWeek,
       session.startTime,
       session.endTime,
     ]);
-    if (signatures.has(signature))
-      errors.push(`${label}: جلسة أسبوعية مكررة لنفس المقرر.`);
+    if (signatures.has(signature)) errors.push(tr("text_210", [label]));
     signatures.add(signature);
-    if (!session.room)
-      missing.push(`${label}: القاعة/الموقع غير معروف (اختياري).`);
+    if (!session.room) missing.push(tr("text_211", [label]));
     session.unconfirmed.forEach((field) =>
       unconfirmed.push(`${label}: ${FIELD_LABELS[field] ?? field}`),
     );
@@ -242,7 +234,7 @@ export function analyzeDraft(draft: TimetableDraft) {
         ![a.startTime, a.endTime, b.startTime, b.endTime].every(validTime)
       )
         continue;
-      const label = `${DAYS[a.dayOfWeek]}: ${draft.courses.find((c) => c.key === a.courseKey)?.name ?? "؟"} (${a.startTime}–${a.endTime}) / ${draft.courses.find((c) => c.key === b.courseKey)?.name ?? "؟"} (${b.startTime}–${b.endTime})`;
+      const label = `${DAYS[a.dayOfWeek]}: ${draft.courses.find((c) => c.key === a.courseKey)?.name ?? tr("text_212")} (${a.startTime}–${a.endTime}) / ${draft.courses.find((c) => c.key === b.courseKey)?.name ?? tr("text_212")} (${b.startTime}–${b.endTime})`;
       if (a.startTime < b.endTime && b.startTime < a.endTime)
         overlaps.push(label);
       else if (a.endTime === b.startTime || b.endTime === a.startTime)

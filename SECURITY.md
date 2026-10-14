@@ -20,6 +20,8 @@ The lockfile fixes dependency resolution. Run the TypeScript check, lint, tests,
 
 ## Planned
 
+Phase 2 adds only read-only dashboard/calendar consumers and a local language preference. No external translation service, analytics, API requests, notification permission or new dependency is introduced. Translation catalogs contain system text; source/user academic values remain unchanged. The browser clock and stored schedules cannot establish actual lecture attendance.
+
 Authentication, authorization, database rules, file validation, upload limits, offline data protection, synchronization trust boundaries, and deployment security headers require later-phase threat modeling. There are no claims of production security certification or data encryption in this foundation.
 
 Report suspected vulnerabilities privately to the repository owner. Do not post credentials or sensitive academic data in public issues.

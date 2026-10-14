@@ -1,3 +1,4 @@
+import { translateMessage } from "../i18n/locale";
 import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -130,7 +131,7 @@ function CourseEditor({
     >
       <FocusHeading>{course ? t.editCourse : t.addCourse}</FocusHeading>
       <p className="review-note">{t.editHint}</p>
-      {error && <p role="alert">{error}</p>}
+      {error && <p role="alert">{translateMessage(error)}</p>}
       <fieldset disabled={busy}>
         <div className="review-fields">
           <Field label={t.name} value={name} onChange={setName} required />
@@ -231,7 +232,7 @@ function SessionEditor({
       <FocusHeading>
         {session ? t.editSession : t.addSession} · {course.name}
       </FocusHeading>
-      {error && <p role="alert">{error}</p>}
+      {error && <p role="alert">{translateMessage(error)}</p>}
       <fieldset disabled={busy}>
         <div className="review-fields">
           <label className="review-field">
@@ -504,12 +505,12 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
       {busy && <p role="status">{t.loading}</p>}
       {notice && (
         <p role="status" className="management-success">
-          {notice}
+          {translateMessage(notice)}
         </p>
       )}
       {error && (
         <p role="alert" className="review-alert">
-          {error}
+          {translateMessage(error)}
         </p>
       )}
       {data && !data.terms.length && <p className="review-card">{t.noTerm}</p>}
@@ -677,6 +678,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
               {!courses.length && <p className="review-card">{t.empty}</p>}
               {courses.map((course) => (
                 <article
+                  id={"course-" + course.id}
                   key={course.id}
                   className="review-card managed-course"
                   aria-label={course.name}

@@ -1,3 +1,4 @@
+import { tr } from "../i18n/locale";
 import { analyzeDraft, FIELD_LABELS, DAYS } from "../features/timetable/draft";
 import { UniCoreDatabase } from "./database";
 import { DataError } from "./errors";
@@ -33,7 +34,7 @@ export async function buildTimetableReview(
   if (validation.errors.length)
     throw new DataError("VALIDATION", validation.errors.join(" "));
   if (!source.sourceId.trim())
-    throw new DataError("VALIDATION", "هوية مصدر المسودة مطلوبة.");
+    throw new DataError("VALIDATION", tr("text_213"));
   const draft: TimetableDraft = {
     ...source,
     term: { ...source.term, unconfirmed: [...source.term.unconfirmed] },
@@ -78,30 +79,19 @@ export async function buildTimetableReview(
       requestedId &&
       canonicalUuid(requestedId) !== binding.recordId
     )
-      fail(
-        "المصدر مرتبط بهوية محفوظة أخرى. لا يمكن إعادة ربطه بسجل مختلف تلقائياً.",
-      );
+      fail(tr("text_214"));
     if (!binding) {
       const explicit = requestedId
         ? await db.records(kind).get(canonicalUuid(requestedId))
         : undefined;
       if (explicit) id = explicit.id;
-      else if (candidates.length > 1)
-        fail(
-          "توجد عدة سجلات محفوظة مطابقة. حدد هوية الفصل أو صحح المسودة؛ لن يتم اختيار سجل تلقائياً.",
-        );
+      else if (candidates.length > 1) fail(tr("text_215"));
       else if (candidates.length === 1) id = candidates[0].id;
     }
     id = id ? canonicalUuid(id) : crypto.randomUUID();
     const existing = await db.records(kind).get(id);
-    if (binding && !existing)
-      fail(
-        "ارتباط الاستيراد يشير إلى سجل مفقود. أوقف الحفظ وراجع البيانات؛ لن يتم إنشاء هوية بديلة.",
-      );
-    if (existing?.deletedAt != null)
-      fail(
-        "أحد السجلات المرتبطة محذوف سابقاً. استبعده من المسودة؛ الاستيراد لا يستعيد السجلات المحذوفة.",
-      );
+    if (binding && !existing) fail(tr("text_216"));
+    if (existing?.deletedAt != null) fail(tr("text_217"));
     if (existing) {
       existingKeys.push(`${kind}:${key}`);
       expected.push({ kind, id, revision: existing.revision });
@@ -128,17 +118,17 @@ export async function buildTimetableReview(
     if (!existing) return;
     const stored = existing as Record<string, unknown>;
     const display = (field: string, value: unknown): string => {
-      if (value == null) return "غير معروف";
+      if (value == null) return tr("text_51");
       if (field === "courseId")
         return courseLabels.get(String(value)) ?? String(value);
       if (field === "dayOfWeek") return DAYS[Number(value)] ?? String(value);
       return (
         (
           {
-            theory: "نظري",
-            practical: "عملي",
-            online: "إلكتروني",
-            "in-person": "وجاهي",
+            theory: tr("text_84"),
+            practical: tr("text_85"),
+            online: tr("text_52"),
+            "in-person": tr("text_53"),
           } as Record<string, string>
         )[String(value)] ?? String(value)
       );
@@ -150,8 +140,7 @@ export async function buildTimetableReview(
       )
       .map(([field, value]) => ({
         field:
-          FIELD_LABELS[field] ??
-          (field === "courseId" ? "المقرر المرتبط" : field),
+          FIELD_LABELS[field] ?? (field === "courseId" ? tr("text_91") : field),
         incoming: display(field, value),
         existing: display(field, stored[field]),
       }));
@@ -206,13 +195,8 @@ export async function buildTimetableReview(
       course.unconfirmed,
     );
     if (match.existing && match.existing.academicTermId !== termMatch.id)
-      fail(
-        "مقرر مرتبط بالمصدر نُقل إلى فصل آخر. استبعده وجلساته أو راجع الربط؛ لن يتغير السجل المحفوظ.",
-      );
-    if (selectedCourseIds.has(match.id))
-      fail(
-        "أكثر من مقرر في المسودة يشير إلى الهوية المحفوظة نفسها. استبعد التكرار قبل الحفظ.",
-      );
+      fail(tr("text_218"));
+    if (selectedCourseIds.has(match.id)) fail(tr("text_219"));
     selectedCourseIds.add(match.id);
     course.id = match.id;
     if (!courseLabels.has(match.id))
@@ -248,11 +232,8 @@ export async function buildTimetableReview(
       session.unconfirmed,
     );
     if (match.existing && match.existing.academicTermId !== termMatch.id)
-      fail("جلسة مرتبطة بالمصدر موجودة في فصل آخر. راجع الربط قبل الحفظ.");
-    if (selectedSessionIds.has(match.id))
-      fail(
-        "جلسات مسودة متعددة تشير إلى الجلسة المحفوظة نفسها. استبعد التكرار قبل الحفظ.",
-      );
+      fail(tr("text_220"));
+    if (selectedSessionIds.has(match.id)) fail(tr("text_221"));
     selectedSessionIds.add(match.id);
     session.id = match.id;
     const { key, unconfirmed, courseKey, ...data } = session;

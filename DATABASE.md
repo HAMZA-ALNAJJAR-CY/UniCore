@@ -90,6 +90,8 @@ const result = await store.createRelated(candidates);
 
 ## Phase 1C management contracts (no schema change)
 
+Phase 2 consumes getTimetable without changing v3. Dashboard/calendar reads exclude tombstones through this contract and never create lectures or update academic records. Language preference lives in localStorage, outside academic storage. Localized validation and difference labels do not change IDs, import snapshots, source values or stored Blobs.
+
 `getTimetable(termId?)` returns `{ terms, termId, courses, sessions }` from a consistent read transaction. It excludes tombstones and uses the academicTermId indexes for the selected term. It neither reads Blob stores nor seeds records. Without a selected ID, the latest academicYear/semester is selected, with UUID as deterministic tie-breaker; the UI exposes explicit term selection.
 
 Course management uses existing create/update methods. Updates send only editable fields and captured expectedRevision, preserving UUID, createdAt, unedited description, mapping rows and attachment relationships. Session edits preserve notes/location similarly. Unknown instructors may be null. Parent course/term IDs are fixed in the editor.

@@ -1,32 +1,31 @@
+import { tr, dynamic } from "../i18n/locale";
 import { CalendarDays, Files, NotebookPen } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
 
-const pages = {
+const pages = dynamic(() => ({
   calendar: {
-    title: "التقويم",
-    description: "نظرة منظمة على الفصل الدراسي.",
+    title: tr("text_13"),
+    description: tr("text_23"),
     icon: CalendarDays,
-    emptyTitle: "تقويمك الأكاديمي قريباً",
-    details: "الفعاليات وعرض الجدول وإدارة التقويم مخططة لمرحلة لاحقة.",
+    emptyTitle: tr("text_24"),
+    details: tr("text_25"),
   },
   lectures: {
-    title: "المحاضرات",
-    description: "كل محاضرة وأفكارها في مكان واحد.",
+    title: tr("text_14"),
+    description: tr("text_26"),
     icon: NotebookPen,
-    emptyTitle: "مساحة لكل محاضرة",
-    details:
-      "واجهات المحاضرات والملاحظات والمرفقات والعد التنازلي مخططة لمرحلة لاحقة.",
+    emptyTitle: tr("text_27"),
+    details: tr("text_28"),
   },
   materials: {
-    title: "المواد",
-    description: "مصادرك الدراسية في مكان واحد.",
+    title: tr("text_15"),
+    description: tr("text_29"),
     icon: Files,
-    emptyTitle: "مكتبتك الدراسية تبدأ هنا",
-    details:
-      "واجهات المستندات وتنظيم المصادر والوصول كتطبيق دون اتصال مخططة لمرحلة لاحقة.",
+    emptyTitle: tr("text_30"),
+    details: tr("text_31"),
   },
-};
+}));
 
 export function PlannedPage({ kind }: { kind: keyof typeof pages }) {
   const page = pages[kind];
