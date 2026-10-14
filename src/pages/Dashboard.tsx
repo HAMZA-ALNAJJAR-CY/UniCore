@@ -8,32 +8,32 @@ export function Dashboard() {
   return (
     <>
       <PageHeader
-        title="Your academic life, under control."
-        description="One focused space for your semester. The foundation is ready; your academic tools are next."
+        title="حياتك الأكاديمية، تحت السيطرة."
+        description="مساحة مركزة لفصلك الدراسي. مراجعة الجدول متاحة من المقررات؛ ربط لوحة التحكم بالبيانات مخطط لاحقاً."
       />
       <section className="welcome-panel">
         <div>
-          <p className="eyebrow text-secondary">BUILT AROUND YOUR SEMESTER</p>
+          <p className="eyebrow text-secondary">مصممة حول فصلك الدراسي</p>
           <h2>
-            Less scattered.
+            تشتت أقل.
             <br />
-            More focused.
+            تركيز أكبر.
           </h2>
           <p>
-            Courses, lectures, and study materials will come together here.
-            Explore the workspace as it takes shape.
+            المقررات والمحاضرات والمواد ستجتمع هنا. استكشف المساحات المخططة
+            أثناء تطوير التطبيق.
           </p>
-          <span className="badge">Phase 0 · Foundation</span>
+          <span className="badge">مساحة أكاديمية قيد التطوير</span>
         </div>
         <div className="welcome-symbol" aria-hidden="true">
           <Layers3 size={72} strokeWidth={1} />
         </div>
       </section>
       <div className="section-heading">
-        <h2>Your workspace</h2>
-        <span>Navigation available · Features planned</span>
+        <h2>مساحتك الأكاديمية</h2>
+        <span>التنقل متاح · التكاملات مخططة</span>
       </div>
-      <section className="workspace-grid" aria-label="Workspace areas">
+      <section className="workspace-grid" aria-label="مساحات العمل">
         {navigation
           .filter((item) => item.path !== "/")
           .map(({ path, label, icon: Icon }) => (
@@ -43,16 +43,16 @@ export function Dashboard() {
                 <ArrowUpRight size={18} aria-hidden="true" />
               </div>
               <h3>{label}</h3>
-              <p>Explore the planned {label.toLowerCase()} area.</p>
-              <span className="badge">Planned</span>
+              <p>استكشف مساحة {label}.</p>
+              <span className="badge">مخطط</span>
             </Link>
           ))}
       </section>
       <section className="schedule-preview">
         <CalendarClock size={26} aria-hidden="true" />
         <div>
-          <h2>Schedule & lecture countdown</h2>
-          <p>Planned for a later phase. No timetable or countdown is active.</p>
+          <h2>عرض الجدول والعد التنازلي للمحاضرات</h2>
+          <p>الربط بلوحة التحكم مخطط لاحقاً؛ لا يوجد عد تنازلي نشط.</p>
         </div>
         <time dateTime={format(new Date(), "yyyy-MM-dd")}>
           {format(new Date(), "EEE, d MMM yyyy")}

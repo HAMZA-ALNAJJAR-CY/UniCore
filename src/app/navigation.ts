@@ -7,9 +7,9 @@ import {
 } from "lucide-react";
 
 export const navigation = [
-  { path: "/", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/courses", label: "Courses", icon: BookOpen },
-  { path: "/calendar", label: "Calendar", icon: CalendarDays },
-  { path: "/lectures", label: "Lectures", icon: NotebookPen },
-  { path: "/materials", label: "Materials", icon: Files },
+  { path: "/", label: "لوحة التحكم", icon: LayoutDashboard },
+  { path: "/courses", label: "المقررات", icon: BookOpen },
+  { path: "/calendar", label: "التقويم", icon: CalendarDays },
+  { path: "/lectures", label: "المحاضرات", icon: NotebookPen },
+  { path: "/materials", label: "المواد", icon: Files },
 ] as const;

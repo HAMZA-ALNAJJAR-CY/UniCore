@@ -13,12 +13,13 @@ import { Dashboard } from "../pages/Dashboard";
 import { PlannedPage } from "../pages/PlannedPage";
 import { NotFound } from "../pages/NotFound";
 import { ToastProvider } from "../components/ToastProvider";
+import { TimetableImport } from "../pages/TimetableImport";
 
 function Navigation({ mobile = false }: { mobile?: boolean }) {
   return (
     <nav
       className={mobile ? "mobile-nav" : "desktop-nav"}
-      aria-label={mobile ? "Mobile navigation" : "Primary navigation"}
+      aria-label={mobile ? "التنقل للجوال" : "التنقل الرئيسي"}
     >
       {navigation.map(({ path, label, icon: Icon }) => (
         <NavLink key={path} to={path} end={path === "/"}>
@@ -34,16 +35,20 @@ function Shell() {
   const location = useLocation();
   const main = useRef<HTMLElement>(null);
   useEffect(() => {
+    document.documentElement.lang = "ar";
+    document.documentElement.dir = "rtl";
     const label =
-      navigation.find((item) => item.path === location.pathname)?.label ??
-      "Page not found";
+      location.pathname === "/courses/import"
+        ? "مراجعة الجدول الدراسي"
+        : (navigation.find((item) => item.path === location.pathname)?.label ??
+          "الصفحة غير موجودة");
     document.title = `${label} | UniCore`;
     main.current?.focus();
   }, [location.pathname]);
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
-        Skip to content
+        الانتقال إلى المحتوى
       </a>
       <aside className="sidebar">
         <Link to="/" className="brand">
@@ -55,14 +60,14 @@ function Shell() {
           </span>
         </Link>
         <p className="brand-tagline">
-          Your Academic Life,
+          حياتك الأكاديمية،
           <br />
-          Under Control.
+          تحت السيطرة.
         </p>
         <Navigation />
         <div className="sidebar-footer">
           <span className="status-dot" />
-          Phase 0 · Foundation<p>Offline access & sync are planned.</p>
+          مراجعة الجدول · محلياً<p>المزامنة والعمل كتطبيق دون اتصال مخططان.</p>
         </div>
       </aside>
       <div className="workspace">
@@ -70,10 +75,8 @@ function Shell() {
           <Link to="/" className="mobile-brand">
             UniCore
           </Link>
-          <span className="topbar-label">
-            A little structure. More headspace.
-          </span>
-          <span className="badge">Foundation preview</span>
+          <span className="topbar-label">تنظيم أبسط. تركيز أكبر.</span>
+          <span className="badge">معاينة UniCore</span>
         </header>
         <main id="main-content" ref={main} tabIndex={-1}>
           <Outlet />
@@ -94,6 +97,7 @@ export function App() {
         <Route element={<Shell />}>
           <Route index element={<Dashboard />} />
           <Route path="courses" element={<PlannedPage kind="courses" />} />
+          <Route path="courses/import" element={<TimetableImport />} />
           <Route path="calendar" element={<PlannedPage kind="calendar" />} />
           <Route path="lectures" element={<PlannedPage kind="lectures" />} />
           <Route path="materials" element={<PlannedPage kind="materials" />} />

@@ -6,7 +6,9 @@ No authentication, server, API keys, cloud storage, analytics, or external runti
 
 ## Phase 1A local storage
 
-The service can retain academic records and attachment Blobs in origin-scoped IndexedDB. The UI is not connected to it yet. Data is not application-encrypted; scripts on the same origin can access it. There is no backup or authenticated authorization. Stored filenames, MIME types and bytes are untrusted; MIME metadata does not establish content safety. Future preview/download screens need content-specific protections.
+The service can retain academic records and attachment Blobs in origin-scoped IndexedDB. Phase 1B connects the timetable review page to this service and writes only after explicit confirmation. Data is not application-encrypted; scripts on the same origin can access it. There is no backup or authenticated authorization. Stored filenames, MIME types and bytes are untrusted; MIME metadata does not establish content safety. Future preview/download screens need content-specific protections.
+
+The bundled timetable draft contains course/session information supplied for this feature; frontend source and bundle contents are public. It excludes the image, student name and student number. No OCR, upload or external API is involved. Re-import never overwrites academic edits. Record revisions, review snapshots and atomic mapping writes guard against stale confirmation and partial saves. UUID collision recovery requires an explicit reviewed maintenance procedure; see RECOVERY.md. No recovery action runs automatically.
 
 Relationship validation, revision checks, reviewed cascades and tombstones protect supported service operations. Quota errors roll back rather than clearing data. No arbitrary file-size limit, auto-purge, or user/timetable seed is introduced. Browser eviction and quota limits still apply.
 

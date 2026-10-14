@@ -12,6 +12,8 @@ export interface AcademicTerm extends RecordMetadata {
   semester: number;
   startDate?: string | null;
   endDate?: string | null;
+  college?: string | null;
+  program?: string | null;
 }
 
 export interface Course extends RecordMetadata {
@@ -22,6 +24,7 @@ export interface Course extends RecordMetadata {
   section?: string | null;
   registeredHours: number;
   description?: string | null;
+  activityType?: "theory" | "practical" | null;
 }
 
 export interface ScheduleSession extends RecordMetadata {

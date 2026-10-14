@@ -6,15 +6,15 @@ export function NotFound() {
   return (
     <>
       <PageHeader
-        title="Page not found"
-        description="This address does not lead to a UniCore page."
+        title="الصفحة غير موجودة"
+        description="هذا العنوان لا يشير إلى صفحة في UniCore."
       />
       <section className="empty-state">
         <Compass size={40} aria-hidden="true" />
-        <h2>Let’s get you back on track.</h2>
-        <p>The page may have moved, or the address may be incorrect.</p>
+        <h2>لنعد إلى مساحتك الأكاديمية.</h2>
+        <p>قد تكون الصفحة انتقلت أو أن العنوان غير صحيح.</p>
         <Link className="button-link" to="/">
-          Back to dashboard
+          العودة إلى لوحة التحكم
         </Link>
       </section>
     </>

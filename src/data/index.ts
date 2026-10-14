@@ -9,6 +9,7 @@ export function createAcademicStore(name = "UniCore") {
 export { DataError } from "./errors";
 export type { DataErrorCode } from "./errors";
 export type * from "./models";
+export type * from "./timetable-types";
 export type {
   BulkResult,
   DeletionEntry,

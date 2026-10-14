@@ -1,39 +1,39 @@
 import { BookOpen, CalendarDays, Files, NotebookPen } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
+import { Link } from "react-router-dom";
 
 const pages = {
   courses: {
-    title: "Courses",
-    description: "A dedicated home for every subject.",
+    title: "المقررات",
+    description: "مساحة منظمة لكل مقرر.",
     icon: BookOpen,
-    emptyTitle: "Your courses will live here",
+    emptyTitle: "إدارة المقررات مخططة",
     details:
-      "Course organization, semester details, and linked study resources are planned for a later phase.",
+      "يمكنك الآن مراجعة واستيراد الجدول محلياً. عرض المقررات وإدارتها هنا مخططان لمرحلة لاحقة.",
   },
   calendar: {
-    title: "Calendar",
-    description: "Make room for what matters this semester.",
+    title: "التقويم",
+    description: "نظرة منظمة على الفصل الدراسي.",
     icon: CalendarDays,
-    emptyTitle: "Your semester, in perspective",
-    details:
-      "Academic events, timetable views, and calendar management are planned for a later phase.",
+    emptyTitle: "تقويمك الأكاديمي قريباً",
+    details: "الفعاليات وعرض الجدول وإدارة التقويم مخططة لمرحلة لاحقة.",
   },
   lectures: {
-    title: "Lectures",
-    description: "Keep each lecture and its ideas together.",
+    title: "المحاضرات",
+    description: "كل محاضرة وأفكارها في مكان واحد.",
     icon: NotebookPen,
-    emptyTitle: "A place for every lecture",
+    emptyTitle: "مساحة لكل محاضرة",
     details:
-      "Lecture notes, photos, attachments, and schedule countdowns are planned for a later phase.",
+      "واجهات المحاضرات والملاحظات والمرفقات والعد التنازلي مخططة لمرحلة لاحقة.",
   },
   materials: {
-    title: "Materials",
-    description: "Bring your study resources into one place.",
+    title: "المواد",
+    description: "مصادرك الدراسية في مكان واحد.",
     icon: Files,
-    emptyTitle: "Your study library starts here",
+    emptyTitle: "مكتبتك الدراسية تبدأ هنا",
     details:
-      "Document storage, resource organization, and offline access are planned for a later phase.",
+      "واجهات المستندات وتنظيم المصادر والوصول كتطبيق دون اتصال مخططة لمرحلة لاحقة.",
   },
 };
 
@@ -47,6 +47,11 @@ export function PlannedPage({ kind }: { kind: keyof typeof pages }) {
         title={page.emptyTitle}
         description={page.details}
       />
+      {kind === "courses" && (
+        <Link className="button-link import-entry" to="/courses/import">
+          مراجعة واستيراد الجدول
+        </Link>
+      )}
     </>
   );
 }

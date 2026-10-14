@@ -12,6 +12,8 @@ export const SCHEMA_V1 = {
   materials: "id, courseId, category",
   materialFiles: "id, materialId",
 };
+export const IMPORT_MAPPING_SCHEMA =
+  "key, sourceId, [sourceId+entity], recordId";
 
 /** Internal module. UI code must use the service exported by data/index.ts. */
 export class UniCoreDatabase extends Dexie {
@@ -73,6 +75,8 @@ export class UniCoreDatabase extends Dexie {
           }
         }
       });
+    // Additive: no existing records, revisions or Blobs are rewritten.
+    this.version(3).stores({ importMappings: IMPORT_MAPPING_SCHEMA });
   }
 
   records<K extends EntityName>(name: K) {

@@ -17,30 +17,28 @@ describe("Phase 0 shell", () => {
   it("renders the dashboard with honest planned feature labels", () => {
     renderRoute();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Your academic life, under control.",
+      "حياتك الأكاديمية، تحت السيطرة.",
     );
     expect(
       screen.getByText(
-        "Planned for a later phase. No timetable or countdown is active.",
+        "الربط بلوحة التحكم مخطط لاحقاً؛ لا يوجد عد تنازلي نشط.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
-  it.each(["Courses", "Calendar", "Lectures", "Materials"])(
+  it.each(["المقررات", "التقويم", "المحاضرات", "المواد"])(
     "navigates to the %s placeholder with both navigation states synchronized",
     (label) => {
       renderRoute();
       const desktop = screen.getByRole("navigation", {
-        name: "Primary navigation",
+        name: "التنقل الرئيسي",
       });
       fireEvent.click(within(desktop).getByRole("link", { name: label }));
       expect(
         screen.getByRole("heading", { level: 1, name: label }),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(
-          "This area is a Phase 0 placeholder. No academic data is stored yet.",
-        ),
+        screen.getByText("هذه المساحة مخططة لمرحلة لاحقة."),
       ).toBeInTheDocument();
       for (const nav of screen.getAllByRole("navigation")) {
         expect(within(nav).getByRole("link", { name: label })).toHaveAttribute(
@@ -48,7 +46,7 @@ describe("Phase 0 shell", () => {
           "page",
         );
         expect(
-          within(nav).getByRole("link", { name: "Dashboard" }),
+          within(nav).getByRole("link", { name: "لوحة التحكم" }),
         ).not.toHaveAttribute("aria-current");
       }
       expect(document.title).toBe(`${label} | UniCore`);
@@ -58,11 +56,13 @@ describe("Phase 0 shell", () => {
   it("handles unknown routes and offers working recovery", () => {
     renderRoute("/missing");
     expect(
-      screen.getByRole("heading", { name: "Page not found" }),
+      screen.getByRole("heading", { name: "الصفحة غير موجودة" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("link", { name: "Back to dashboard" }));
+    fireEvent.click(
+      screen.getByRole("link", { name: "العودة إلى لوحة التحكم" }),
+    );
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Your academic life, under control.",
+      "حياتك الأكاديمية، تحت السيطرة.",
     );
   });
 });

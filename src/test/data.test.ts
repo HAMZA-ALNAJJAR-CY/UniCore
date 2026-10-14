@@ -2,7 +2,11 @@
 import "fake-indexeddb/auto";
 import Dexie from "dexie";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { UniCoreDatabase, SCHEMA_V1 } from "../data/database";
+import {
+  UniCoreDatabase,
+  SCHEMA_V1,
+  IMPORT_MAPPING_SCHEMA,
+} from "../data/database";
 import { AcademicStore } from "../data/store";
 import { createAcademicStore } from "../data";
 import type { CreateInput, Entities } from "../data/models";
@@ -686,12 +690,13 @@ describe("Safe deletion and migrations", () => {
       blob: new Blob(["migration bytes"]),
     });
     store.close();
-    // This v3 exists only in the test; production ships version 2.
+    // This v4 exists only in the test; production ships version 3.
     const upgraded = new Dexie(db.name);
     upgraded.version(1).stores(SCHEMA_V1);
     upgraded.version(2).stores(SCHEMA_V1);
+    upgraded.version(3).stores({ importMappings: IMPORT_MAPPING_SCHEMA });
     upgraded
-      .version(3)
+      .version(4)
       .stores({ courses: "id, academicTermId, &[academicTermId+code], name" });
     try {
       await upgraded.open();
@@ -707,7 +712,7 @@ describe("Safe deletion and migrations", () => {
         .table<Entities["materialFiles"]>("materialFiles")
         .get(file.id);
       expect(await migrated?.blob.text()).toBe("migration bytes");
-      expect(upgraded.verno).toBe(3);
+      expect(upgraded.verno).toBe(4);
     } finally {
       upgraded.close();
     }

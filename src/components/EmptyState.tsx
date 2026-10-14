@@ -14,12 +14,10 @@ export function EmptyState({
       <span className="icon-tile">
         <Icon size={28} aria-hidden="true" />
       </span>
-      <span className="badge">Planned</span>
+      <span className="badge">مخطط</span>
       <h2>{title}</h2>
       <p>{description}</p>
-      <p className="empty-note">
-        This area is a Phase 0 placeholder. No academic data is stored yet.
-      </p>
+      <p className="empty-note">هذه المساحة مخططة لمرحلة لاحقة.</p>
     </section>
   );
 }

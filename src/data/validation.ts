@@ -3,7 +3,15 @@ import { DataError } from "./errors";
 import { canonicalUuid } from "./identity";
 
 const fields: Record<EntityName, readonly string[]> = {
-  academicTerms: ["name", "academicYear", "semester", "startDate", "endDate"],
+  academicTerms: [
+    "name",
+    "academicYear",
+    "semester",
+    "startDate",
+    "endDate",
+    "college",
+    "program",
+  ],
   courses: [
     "academicTermId",
     "code",
@@ -12,6 +20,7 @@ const fields: Record<EntityName, readonly string[]> = {
     "section",
     "registeredHours",
     "description",
+    "activityType",
   ],
   scheduleSessions: [
     "academicTermId",
@@ -97,6 +106,8 @@ export function validate<K extends EntityName>(kind: K, record: Entities[K]) {
         "notes",
         "title",
         "category",
+        "college",
+        "program",
       ].includes(key) &&
       value[key] != null &&
       typeof value[key] !== "string"
@@ -123,6 +134,12 @@ export function validate<K extends EntityName>(kind: K, record: Entities[K]) {
         invalid("Term end date precedes its start date.");
       break;
     case "courses":
+      if (
+        value.activityType != null &&
+        value.activityType !== "theory" &&
+        value.activityType !== "practical"
+      )
+        invalid("Invalid activityType.");
       uuid(value.academicTermId);
       text(value.code, "code");
       text(value.name, "name");

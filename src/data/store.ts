@@ -11,6 +11,12 @@ import type {
   UpdateInput,
 } from "./models";
 import { assertInput, invalid, validate } from "./validation";
+import { buildTimetableReview } from "./timetable-review";
+import type {
+  ImportMapping,
+  TimetableDraft,
+  TimetableReview,
+} from "./timetable-types";
 
 type DeleteOptions = {
   expectedRevision: number;
@@ -68,6 +74,86 @@ export class AcademicStore {
   }
   close() {
     this.database.close();
+  }
+
+  reviewTimetable(draft: TimetableDraft): Promise<TimetableReview> {
+    return this.run(
+      "r",
+      async () => (await buildTimetableReview(this.database, draft)).review,
+    );
+  }
+
+  async saveTimetable(
+    review: TimetableReview,
+    confirmation: { confirmed: boolean; keepExistingKeys: readonly string[] },
+  ): Promise<BulkResult> {
+    if (confirmation.confirmed !== true)
+      throw new DataError("VALIDATION", "أكد مراجعة البيانات قبل الحفظ.");
+    // Fresh resolution and validation also run inside the write transaction.
+    return this.executeBatch(
+      async (result) => {
+        const fresh = await buildTimetableReview(this.database, review.draft);
+        if (fresh.review.snapshot !== review.snapshot)
+          throw new DataError(
+            "CONFLICT",
+            "تغيرت البيانات المحفوظة منذ المراجعة. أعد المراجعة والتأكيد قبل الحفظ.",
+          );
+        if (
+          fresh.review.differences.some(
+            (row) => !confirmation.keepExistingKeys.includes(row.key),
+          )
+        )
+          throw new DataError(
+            "CONFLICT",
+            "راجع الفروق واختر الاحتفاظ بالبيانات المحفوظة أو ارجع لتعديل/استبعاد صفوف المسودة.",
+          );
+        await this.processBulk(
+          "academicTerms",
+          fresh.batch.academicTerms ?? [],
+          result,
+        );
+        await this.processBulk("courses", fresh.batch.courses ?? [], result);
+        await this.processBulk(
+          "scheduleSessions",
+          fresh.batch.scheduleSessions ?? [],
+          result,
+        );
+        if (!result.outcomes.some((row) => row.status === "rejected")) {
+          for (const mapping of fresh.mappings)
+            await this.database
+              .table<ImportMapping, string>("importMappings")
+              .put(mapping);
+        }
+      },
+      {
+        academicTerms: [
+          {
+            id: review.draft.term.id!,
+            name: review.draft.term.name,
+            academicYear: review.draft.term.academicYear,
+            semester: review.draft.term.semester,
+          },
+        ],
+        courses: review.draft.courses.map((row) => ({
+          id: row.id!,
+          academicTermId: review.draft.term.id!,
+          code: row.code,
+          name: row.name,
+          registeredHours: row.registeredHours,
+        })),
+        scheduleSessions: review.draft.sessions.map((row) => ({
+          id: row.id!,
+          academicTermId: review.draft.term.id!,
+          courseId:
+            review.draft.courses.find((course) => course.key === row.courseKey)
+              ?.id ?? "",
+          dayOfWeek: row.dayOfWeek,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          deliveryMode: row.deliveryMode,
+        })),
+      },
+    );
   }
 
   detachLectureFromSchedule(id: string, expectedRevision: number) {

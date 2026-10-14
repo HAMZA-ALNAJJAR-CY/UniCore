@@ -284,7 +284,7 @@ describe("Canonical identity", () => {
     }
     legacy.close();
     await store.open();
-    expect(db.verno).toBe(2);
+    expect(db.verno).toBe(3);
     expect(await store.courses.get(ids.courses)).toMatchObject({
       academicTermId: ids.academicTerms,
     });

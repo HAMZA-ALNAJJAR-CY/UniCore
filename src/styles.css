@@ -49,9 +49,10 @@ p {
 .sidebar {
   width: 240px;
   position: fixed;
-  inset: 0 auto 0 0;
+  inset-block: 0;
+  inset-inline-start: 0;
   background: #101019;
-  border-right: 1px solid var(--border);
+  border-inline-end: 1px solid var(--border);
   padding: 34px 24px;
   display: flex;
   flex-direction: column;
@@ -100,7 +101,7 @@ p {
 .desktop-nav a.active {
   color: var(--color-foreground);
   background: #8b5cf61f;
-  box-shadow: inset 3px 0 var(--color-primary);
+  box-shadow: inset -3px 0 var(--color-primary);
 }
 .desktop-nav a.active svg {
   color: #bca3ff;
@@ -123,7 +124,7 @@ p {
   margin-right: 8px;
 }
 .workspace {
-  margin-left: 240px;
+  margin-inline-start: 240px;
 }
 .topbar {
   min-height: 76px;
@@ -378,7 +379,7 @@ main:focus {
     display: none;
   }
   .workspace {
-    margin-left: 0;
+    margin-inline-start: 0;
     padding-bottom: calc(80px + env(safe-area-inset-bottom));
   }
   .topbar {
@@ -452,5 +453,274 @@ main:focus {
 @media (max-width: 360px) {
   .workspace-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+:root[lang="ar"] :is(h1, h2, h3, .eyebrow) {
+  letter-spacing: 0;
+}
+.import-entry {
+  display: inline-block;
+  margin-block-start: 24px;
+}
+.timetable-review {
+  min-width: 0;
+}
+.review-steps {
+  padding: 0;
+  margin: 0 0 30px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  list-style: none;
+}
+.review-steps li {
+  padding: 12px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--color-muted);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.review-steps li[aria-current] {
+  border-color: var(--color-primary);
+  color: var(--color-foreground);
+  background: #8b5cf617;
+}
+.review-steps li > span {
+  color: #bca3ff;
+}
+.review-step-title {
+  font-size: 23px;
+  margin-block: 16px;
+  font-weight: 650;
+}
+.review-body {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.review-card {
+  background: var(--color-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-block-end: 18px;
+  min-width: 0;
+}
+.review-card-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  margin-block-end: 20px;
+}
+.review-card h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.review-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.review-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+  color: #d4d4df;
+  min-width: 0;
+}
+.review-field :is(input, select),
+.review-fields select {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  min-height: 46px;
+  background: var(--color-background);
+  border: 1px solid #424259;
+  border-radius: 8px;
+  color: var(--color-foreground);
+  font: inherit;
+}
+.review-field input[dir="ltr"] {
+  text-align: left;
+  unicode-bidi: plaintext;
+}
+.review-note {
+  color: var(--color-muted);
+  font-size: 13px;
+  margin-block: 16px;
+}
+.unknown-fields {
+  margin-block: 18px;
+  font-size: 13px;
+}
+.unknown-fields summary {
+  cursor: pointer;
+  min-height: 30px;
+  color: #c9b4ff;
+}
+.unknown-fields > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.unknown-fields label,
+.review-choice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.review-choice {
+  margin-block: 20px;
+  font-size: 14px;
+}
+.timetable-review input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0;
+  flex-shrink: 0;
+  accent-color: var(--color-primary);
+}
+.timetable-review button {
+  border: 1px solid #51406d;
+  border-radius: 8px;
+  background: #34234f;
+  color: #f4f4f5;
+  padding: 10px 16px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.timetable-review button:hover:not(:disabled) {
+  background: #49346b;
+}
+.timetable-review button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.timetable-review .remove-draft {
+  background: transparent;
+  border-color: #684451;
+  color: #ffc2cf;
+}
+.session-card {
+  border-inline-start: 3px solid var(--color-primary);
+}
+.session-card[data-mode="online"] {
+  border-inline-start-color: var(--color-secondary);
+}
+.session-card[data-mode="online"] .badge {
+  color: #67e8f9;
+}
+.review-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-block-end: 22px;
+}
+.review-stats > div {
+  padding: 20px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--color-muted);
+  text-align: center;
+}
+.review-stats strong {
+  display: block;
+  font-size: 28px;
+  color: var(--color-foreground);
+}
+.review-findings {
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-block-end: 14px;
+}
+.review-findings h3 {
+  font-weight: 600;
+  font-size: 15px;
+  margin-block-end: 10px;
+}
+.review-findings p,
+.review-findings li {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+.review-findings ul {
+  padding-inline-start: 20px;
+  list-style: disc;
+}
+.finding-danger h3 {
+  color: #ffbdc6;
+}
+.review-alert {
+  border: 1px solid #915366;
+  background: #3c1b2b;
+  border-radius: 10px;
+  padding: 18px;
+  margin-block: 16px;
+  color: #ffd2dc;
+}
+.review-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-block: 24px;
+}
+.difference-list {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  color: var(--color-muted);
+  margin-block: 14px;
+}
+.review-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-block: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.review-table-scroll table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: start;
+}
+.review-table-scroll :is(th, td) {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.review-table-scroll caption {
+  text-align: start;
+  padding: 16px;
+  font-weight: 600;
+}
+@media (max-width: 767px) {
+  .review-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .review-steps li:last-child {
+    grid-column: 1 / -1;
+  }
+  .review-fields {
+    grid-template-columns: 1fr;
+  }
+  .review-card {
+    padding: 18px;
+  }
+  .review-stats > div {
+    padding: 14px 6px;
+    font-size: 11px;
   }
 }
