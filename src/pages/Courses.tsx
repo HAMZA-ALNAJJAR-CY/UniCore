@@ -1,6 +1,6 @@
 import { translateMessage } from "../i18n/locale";
-import { useEffect, useId, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Link, UNSAFE_DataRouterContext, useLocation, useSearchParams } from "react-router-dom";
 import { introductionText } from "../i18n/introduction";
 import { EditorNavigationGuard } from "../components/EditorNavigationGuard";
 import {
@@ -334,6 +334,16 @@ type Removal =
 
 export function Courses({ store = defaultStore }: { store?: Store }) {
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const router = useContext(UNSAFE_DataRouterContext)?.router;
+  // A return to the same history entry is still a new navigation lifetime.
+  const refreshContext = useMemo(() => ({ store, router, key: location.key, pathname: location.pathname, search: location.search }),
+    [store, router, location.key, location.pathname, location.search]);
+  const refreshOperation = useRef<symbol | null>(null);
+  const [refreshState, setRefreshState] = useState<{ context: typeof refreshContext; pending: boolean } | null>(null);
+  const refreshing = refreshState?.context === refreshContext && refreshState.pending;
+  // Invalidate before passive effects or a late promise can apply old results.
+  useLayoutEffect(() => () => { refreshOperation.current = null; }, [refreshContext]);
   const requestedTerm = params.get("term") ?? undefined;
   const [data, setData] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState(true);
@@ -401,18 +411,31 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   }, [store, requestedTerm, protectedTermId, setParams]);
 
   async function load(termId = data?.termId) {
-    setBusy(true);
+    const operation = Symbol("course refresh");
+    refreshOperation.current = operation;
+    const current = () => {
+      // Router state can advance before React commits the next layout effect.
+      const activeLocation = router?.state.location;
+      return refreshOperation.current === operation && (!activeLocation ||
+        (activeLocation.key === refreshContext.key && activeLocation.pathname === refreshContext.pathname && activeLocation.search === refreshContext.search));
+    };
+    setRefreshState({ context: refreshContext, pending: true });
     setError("");
     setNotice("");
     try {
       const snapshot = await store.getTimetable(termId);
+      if (!current()) return;
       setData(snapshot);
       loadedContext.current = { store, termId: snapshot.termId };
-      if (snapshot.termId) setParams(current => { current.set("term", snapshot.termId!); return current; }, { replace: true });
+      if (snapshot.termId && snapshot.termId !== requestedTerm)
+        setParams(current => { current.set("term", snapshot.termId!); return current; }, { replace: true });
     } catch (failure) {
-      setError(errorText(failure));
+      if (current()) setError(errorText(failure));
     } finally {
-      setBusy(false);
+      if (current()) {
+        refreshOperation.current = null;
+        setRefreshState({ context: refreshContext, pending: false });
+      }
     }
   }
   function begin(next: Editor) {
@@ -502,7 +525,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     }
   }
   const transitioning = !protectedTermId && data !== null && requestedTerm !== undefined && requestedTerm !== data.termId;
-  const locked = busy || transitioning || !!editor || !!removal;
+  const locked = busy || refreshing || transitioning || !!editor || !!removal;
   const courses = data?.courses ?? [];
   const sessions = ordered(data?.sessions ?? []);
   const conflicts = sessions.flatMap((row, index) =>
@@ -574,7 +597,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
         </button>
       </div>
       <p className="review-note">{t.refreshHint}</p>
-      {(busy || transitioning) && <p role="status">{t.loading}</p>}
+      {(busy || refreshing || transitioning) && <p role="status">{t.loading}</p>}
       {protectedTermId && <p role="status">{introductionText.finishEditing}</p>}
       {notice && (
         <p role="status" className="management-success">

@@ -28,9 +28,14 @@ const STEPS = dynamic(() => [
   tr("text_35"),
 ]);
 const nullable = (value: string) => (value.trim() ? value : null);
+function sourceMessage(detail: string) {
+  return [introductionText.resolveIdentity, introductionText.brokenSource, introductionText.newIdentityConflict, introductionText.retainedParentExcluded]
+    .find(text => detail.includes(text));
+}
 function message(error: unknown) {
   if (error instanceof DataError) {
-    if ([introductionText.resolveIdentity, introductionText.brokenSource, introductionText.newIdentityConflict].includes(error.message)) return error.message;
+    const specific = sourceMessage(error.message);
+    if (specific) return specific;
     if (error.code === "IDENTITY_COLLISION") return tr("text_36");
     if (error.code === "QUOTA") return tr("text_37");
     if (error.code === "CONFLICT" || error.code === "VALIDATION")
@@ -390,8 +395,8 @@ function TimetableReviewForm({
         keepExistingKeys: keep,
       });
       if (!result.committed) {
-        const code = result.rejected[0]?.code ?? "CONFLICT";
-        setError(message(new DataError(code, tr("text_56"))));
+        const failure = result.rejected[0];
+        setError(message(new DataError(failure?.code ?? "CONFLICT", sourceMessage(failure?.reason ?? "") ?? tr("text_56"))));
         setConfirmed(false);
         setPlan(null);
       } else {

@@ -47,6 +47,9 @@ export async function reopenSource(
     .sort((a, b) => a.createdAt - b.createdAt || a.sourceKey.localeCompare(b.sourceKey))
     .filter((row, index, rows) => rows.findIndex(other =>
       other.entity === row.entity && other.recordId === row.recordId) === index)
+    // Conservatively recover disagreement in legacy aliases. saveTimetable
+    // broadcasts the next explicit confirmation to every alias of this record
+    // within this source; independently reviewed sources keep their own flags.
     .map(row => ({ ...row, unconfirmed: [...new Set(mappings.filter(alias =>
       alias.entity === row.entity && alias.recordId === row.recordId)
       .flatMap(alias => alias.unconfirmed))] }));

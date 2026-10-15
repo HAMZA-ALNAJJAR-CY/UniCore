@@ -358,10 +358,21 @@ export class AcademicStore {
           result,
         );
         if (!result.outcomes.some((row) => row.status === "rejected")) {
+          const table = this.database.table<ImportMapping, string>("importMappings");
+          const aliases = await table.where("sourceId").equals(review.draft.sourceId).toArray();
+          // Confirmation belongs to an entity UUID within this source. Keep
+          // every historical key/UUID/createdAt, updating only reviewed flags.
+          for (const alias of aliases) {
+            const reviewed = fresh.mappings.find(row => row.entity === alias.entity && row.recordId === alias.recordId);
+            if (reviewed && (alias.unconfirmed.length !== reviewed.unconfirmed.length ||
+              alias.unconfirmed.some((field, index) => field !== reviewed.unconfirmed[index])))
+              await table.put({ ...alias, unconfirmed: [...reviewed.unconfirmed] });
+          }
           for (const mapping of fresh.mappings)
-            await this.database
-              .table<ImportMapping, string>("importMappings")
-              .put(mapping);
+            await table.put(mapping);
+          // Validate the complete persisted graph, including excluded historical
+          // mappings, before committing. Failure rolls back records AND metadata.
+          await reopenSource(this.database, review.draft.sourceId);
         }
       },
       {

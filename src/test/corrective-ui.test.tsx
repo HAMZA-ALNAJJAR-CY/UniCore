@@ -44,6 +44,175 @@ function courseRoute(a: AcademicTerm, b: AcademicTerm, path = "/courses?term=" +
 }
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
 
+function deferred<T>() {
+  let resolve!: (value: T) => void, reject!: (error: Error) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+}
+
+it("ignores a refresh settling after router navigation but before React commits its effects", async () => {
+  const { a, b, course } = await terms();
+  const snapshot = await store.getTimetable(a.id), pending = deferred<typeof snapshot>();
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?term=" + b.id, "/courses?term=" + a.id], initialIndex: 1,
+  });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("article", { name: course.name });
+  vi.spyOn(store, "getTimetable").mockImplementationOnce(() => pending.promise);
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  await act(async () => {
+    const navigation = router.navigate(-1);
+    pending.resolve(snapshot);
+    await navigation;
+  });
+  await waitFor(() => expect(screen.getByLabelText(t.term)).toHaveValue(b.id));
+  expect(router.state.location.search).toBe("?term=" + b.id);
+  expect(screen.queryByRole("article", { name: course.name })).not.toBeInTheDocument();
+  view.unmount(); router.dispose();
+});
+
+it.each([-1, 1])("ignores a delayed Courses refresh after history navigation in direction %s", async direction => {
+  const { a, b, course } = await terms();
+  const get = store.getTimetable.bind(store), snapshotA = await get(a.id);
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: direction === -1 ? ["/courses?term=" + b.id, "/courses?term=" + a.id] : ["/courses?term=" + a.id, "/courses?term=" + b.id],
+    initialIndex: direction === -1 ? 1 : 0,
+  });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("article", { name: course.name });
+  const pending = deferred<typeof snapshotA>();
+  vi.spyOn(store, "getTimetable").mockImplementationOnce(() => pending.promise);
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  expect(screen.getByRole("button", { name: t.retry })).toBeDisabled();
+  await act(async () => { await router.navigate(direction); });
+  await waitFor(() => expect(screen.getByLabelText(t.term)).toHaveValue(b.id));
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  const key = router.state.location.key;
+  await act(async () => pending.resolve(snapshotA));
+  expect(router.state.location.search).toBe("?term=" + b.id);
+  expect(router.state.location.key).toBe(key);
+  expect(screen.getByLabelText(t.term)).toHaveValue(b.id);
+  expect(screen.queryByRole("article", { name: course.name })).not.toBeInTheDocument();
+  expect((await get(a.id)).courses).toEqual(snapshotA.courses);
+  view.unmount(); router.dispose();
+});
+
+it.each(["resolve", "reject"] as const)("keeps the newest refresh after rapid Back/Forward when the older request later %ss", async outcome => {
+  const { a, b, course } = await terms();
+  const get = store.getTimetable.bind(store), oldSnapshot = await get(a.id);
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?term=" + b.id, "/courses?term=" + a.id], initialIndex: 1,
+  });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("article", { name: course.name });
+  const older = deferred<typeof oldSnapshot>(), newer = deferred<typeof oldSnapshot>();
+  const read = vi.spyOn(store, "getTimetable").mockImplementationOnce(() => older.promise);
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  await store.courses.update(course.id, { name: "Newest synthetic course" }, 1);
+  await act(async () => { await router.navigate(-1); });
+  await waitFor(() => expect(screen.getByLabelText(t.term)).toHaveValue(b.id));
+  await act(async () => { await router.navigate(1); });
+  // The old A refresh must not leave this returned navigation context busy.
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  read.mockImplementationOnce(() => newer.promise);
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  await act(async () => newer.resolve(await get(a.id)));
+  await screen.findByRole("article", { name: "Newest synthetic course" });
+  const key = router.state.location.key;
+  await act(async () => { if (outcome === "resolve") older.resolve(oldSnapshot); else older.reject(new Error("Stale read failure")); });
+  expect(router.state.location.search).toBe("?term=" + a.id);
+  expect(router.state.location.key).toBe(key);
+  expect(screen.getByRole("article", { name: "Newest synthetic course" })).toBeInTheDocument();
+  expect(screen.queryByRole("article", { name: course.name })).not.toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: t.retry })).toBeEnabled();
+  view.unmount(); router.dispose();
+});
+
+it("never navigates or updates a departed page when a Courses refresh settles after unmount", async () => {
+  const { a, course } = await terms();
+  const snapshot = await store.getTimetable(a.id), pending = deferred<typeof snapshot>();
+  const router = createMemoryRouter([
+    { path: "/courses", element: <Courses store={store} /> },
+    { path: "/elsewhere", element: <p>Different page</p> },
+  ], { initialEntries: ["/courses?term=" + a.id] });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("article", { name: course.name });
+  vi.spyOn(store, "getTimetable").mockImplementationOnce(() => pending.promise);
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  await act(async () => { await router.navigate("/elsewhere"); });
+  await screen.findByText("Different page");
+  const navigation = vi.spyOn(router, "navigate"), key = router.state.location.key;
+  await act(async () => pending.resolve(snapshot));
+  expect(navigation).not.toHaveBeenCalled();
+  expect(router.state.location.pathname).toBe("/elsewhere");
+  expect(router.state.location.key).toBe(key);
+  expect(screen.getByText("Different page")).toBeInTheDocument();
+  view.unmount(); router.dispose();
+});
+
+it("does not clear a newer refresh's loading state when an abandoned refresh finishes first", async () => {
+  const { a, b, course } = await terms();
+  const get = store.getTimetable.bind(store), snapshotA = await get(a.id), snapshotB = await get(b.id);
+  const older = deferred<typeof snapshotA>(), newer = deferred<typeof snapshotB>();
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?term=" + b.id, "/courses?term=" + a.id], initialIndex: 1,
+  });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("article", { name: course.name });
+  const read = vi.spyOn(store, "getTimetable").mockImplementationOnce(() => older.promise);
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  await act(async () => { await router.navigate(-1); });
+  await waitFor(() => expect(screen.getByLabelText(t.term)).toHaveValue(b.id));
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  read.mockImplementationOnce(() => newer.promise);
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  await act(async () => older.resolve(snapshotA));
+  expect(screen.getByRole("button", { name: t.retry })).toBeDisabled();
+  expect(screen.getByText(t.loading)).toHaveAttribute("role", "status");
+  expect(screen.getByLabelText(t.term)).toHaveValue(b.id);
+  expect(router.state.location.search).toBe("?term=" + b.id);
+  await act(async () => newer.resolve(snapshotB));
+  expect(screen.getByRole("button", { name: t.retry })).toBeEnabled();
+  view.unmount(); router.dispose();
+});
+
+it("blocks the retained-parent import reproduction and resolves it by explicitly excluding the conflicting session", async () => {
+  const first = await store.reviewTimetable(sourceDraft());
+  await store.saveTimetable(first, { confirmed: true, keepExistingKeys: [] });
+  const incoming = structuredClone(first.draft); incoming.sourceId = "synthetic-parent-ui";
+  const parentKey = incoming.sessions[0].courseKey;
+  const other = incoming.courses.find(row => row.key !== parentKey)!;
+  const parentIndex = incoming.courses.findIndex(row => row.key === parentKey);
+  const router = createMemoryRouter([
+    { path: "/courses/import", element: <TimetableImport store={store} initialDraft={incoming} /> },
+    { path: "/", element: <p>Import saved destination</p> },
+  ], { initialEntries: ["/courses/import"] });
+  const view = render(<RouterProvider router={router} />);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.change(within(screen.getByRole("region", { name: "Session 1" })).getByLabelText(tr("text_91")), { target: { value: other.key } });
+  fireEvent.click(screen.getByRole("button", { name: tr("text_124") }));
+  fireEvent.click(within(screen.getByRole("region", { name: `Course ${parentIndex + 1}` })).getByRole("button", { name: tr("text_86") }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(await screen.findByRole("alert", {}, { timeout: 5000 })).toHaveTextContent(/original course.*excluded/i);
+  expect(screen.getByRole("region", { name: "Session 1" })).toBeInTheDocument();
+  expect(await store.listImportSources()).toHaveLength(1);
+  fireEvent.click(within(screen.getByRole("region", { name: "Session 1" })).getByRole("button", { name: tr("text_98") }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByRole("heading", { name: "Final review" }, { timeout: 5000 });
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: tr("text_120") }));
+  fireEvent.click(screen.getByRole("button", { name: tr("text_122") }));
+  await screen.findByText("Import saved destination", {}, { timeout: 5000 });
+  expect((await store.reopenImportSource(incoming.sourceId)).courses.some(row => row.key === parentKey)).toBe(false);
+  expect(await store.courses.list()).toHaveLength(7);
+  expect(await store.scheduleSessions.list()).toHaveLength(15);
+  view.unmount(); router.dispose();
+}, 15000);
+
 it("keeps a pending course write in term A when Back targets B and discard is attempted", async () => {
   const { a, b, course } = await terms();
   const create = store.courses.create.bind(store.courses);
@@ -89,15 +258,15 @@ it("shows the explicit-new identity conflict in import review and permits select
   const identity = within(screen.getByRole("region", { name: "Session 1" })).getByLabelText(intro.identity);
   fireEvent.change(identity, { target: { value: "new" } });
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent(intro.newIdentityConflict);
+  expect(await screen.findByRole("alert", {}, { timeout: 5000 })).toHaveTextContent(intro.newIdentityConflict);
   act(() => setLanguage("ar"));
   expect(screen.getByRole("alert")).toHaveTextContent(intro.newIdentityConflict);
   act(() => setLanguage("en"));
   fireEvent.change(identity, { target: { value: first.draft.sessions[0].id } });
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
-  await screen.findByRole("heading", { name: "Final review" });
+  await screen.findByRole("heading", { name: "Final review" }, { timeout: 5000 });
   expect(await store.scheduleSessions.list()).toHaveLength(15);
-});
+}, 15000);
 
 it("shares manual setup across mounts, rejects duplicate submissions, and waits for explicit continuation", async () => {
   const create = store.academicTerms.create.bind(store.academicTerms);
@@ -308,7 +477,8 @@ it("reopens the import route using discoverable stored mappings and reviews an e
   const region = screen.getAllByRole("region", { name: /^Session \d/ }).find(region => within(region).queryByDisplayValue("07:30"))!;
   fireEvent.change(within(region).getByLabelText("Start time (HH:mm)"), { target: { value: original.startTime } });
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
-  await screen.findByText(/07:30/);
+  await screen.findByRole("heading", { name: "Final review" }, { timeout: 5000 });
+  expect(screen.getByText("07:30", { exact: true })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   expect(screen.getByRole("alert")).toHaveTextContent(/keep/i);
   expect(await store.scheduleSessions.list()).toHaveLength(15);
@@ -316,7 +486,7 @@ it("reopens the import route using discoverable stored mappings and reviews an e
   act(() => setLanguage("ar"));
   expect(screen.getByText(tr("text_189"), { exact: true })).toBeInTheDocument();
   view.unmount();
-});
+}, 15000);
 
 it("requires explicit identity resolution in review when an incoming session no longer matches", async () => {
   const first = await store.reviewTimetable(sourceDraft());
@@ -333,9 +503,9 @@ it("requires explicit identity resolution in review when an incoming session no 
   await waitFor(() => expect(within(region).getByLabelText(intro.identity).querySelector(`option[value="${original.id}"]`)).not.toBeNull());
   fireEvent.change(within(region).getByLabelText(intro.identity), { target: { value: original.id } });
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
-  await screen.findByRole("heading", { name: "Final review" });
-  expect(screen.getByText(/07:30/)).toBeInTheDocument();
-});
+  await screen.findByRole("heading", { name: "Final review" }, { timeout: 5000 });
+  expect(screen.getByText("07:30", { exact: true })).toBeInTheDocument();
+}, 10000);
 
 it("disables manual cancellation, prevents duplicate submits, and never navigates back after leaving a pending save", async () => {
   let resolve!: (value: { id: string }) => void;

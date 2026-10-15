@@ -228,6 +228,12 @@ export async function buildTimetableReview(
     .equals(termMatch.id)
     .toArray();
   const selectedSessionIds = new Set<string>();
+  // Excluded draft rows retain their saved source mappings. Validate the
+  // session that keep-existing will actually retain against that final source.
+  const mappedCourseIds = new Set([
+    ...bindings.filter(row => row.entity === "courses").map(row => row.recordId),
+    ...pendingMappings.filter(row => row.entity === "courses").map(row => row.recordId),
+  ]);
   for (const session of draft.sessions) {
     const course = draft.courses.find((row) => row.key === session.courseKey)!;
     const match = await resolve(
@@ -247,6 +253,8 @@ export async function buildTimetableReview(
     );
     if (match.existing && match.existing.academicTermId !== termMatch.id)
       fail(tr("text_220"));
+    if (match.existing && !mappedCourseIds.has(match.existing.courseId))
+      fail(t.retainedParentExcluded);
     if (selectedSessionIds.has(match.id)) fail(tr("text_221"));
     selectedSessionIds.add(match.id);
     session.id = match.id;

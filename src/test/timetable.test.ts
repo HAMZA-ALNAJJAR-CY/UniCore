@@ -387,6 +387,108 @@ describe("Atomic confirmed import and re-import", () => {
 });
 
 describe("corrective source identity recovery", () => {
+  it("blocks an excluded retained parent and permits explicit parent inclusion or valid session selection", async () => {
+    const first = await store.reviewTimetable(sourceDraft());
+    await store.saveTimetable(first, confirm(first));
+    const original = first.draft.sessions[0];
+    const parent = first.draft.courses.find(row => row.key === original.courseKey)!;
+    const other = first.draft.courses.find(row => row.key !== parent.key)!;
+    const incoming = structuredClone(first.draft);
+    incoming.sourceId = "synthetic-retained-parent";
+    incoming.sessions = [{ ...original, courseKey: other.key }];
+    incoming.courses = incoming.courses.filter(row => row.id !== parent.id);
+    const records = await store.scheduleSessions.list();
+    const mappings = await db.table<ImportMapping>("importMappings").toArray();
+    await expect(store.reviewTimetable(incoming)).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await db.table("importMappings").toArray()).toEqual(mappings);
+    expect(await store.scheduleSessions.list()).toEqual(records);
+
+    incoming.courses.push(parent); // Explicitly retain the original saved parent.
+    const resolved = await store.reviewTimetable(incoming);
+    expect(resolved.differences.some(row => row.key === `scheduleSessions:${original.key}`)).toBe(true);
+    expect((await store.saveTimetable(resolved, { confirmed: true, keepExistingKeys: [] })).committed).toBe(false);
+    const saved = await store.saveTimetable(resolved, confirm(resolved));
+    expect(saved).toMatchObject({ committed: true, created: [], rejected: [] });
+    const reopened = await store.reopenImportSource(incoming.sourceId);
+    expect(reopened.sessions[0]).toMatchObject({ id: original.id, courseKey: parent.key });
+    expect(await store.scheduleSessions.list()).toEqual(records);
+
+    // A new source can instead explicitly select a session owned by course B.
+    incoming.sourceId = "synthetic-valid-parent-alternative";
+    incoming.courses = incoming.courses.filter(row => row.id !== parent.id);
+    incoming.sessions[0].id = first.draft.sessions.find(row => row.courseKey === other.key)!.id;
+    const alternative = await store.reviewTimetable(incoming);
+    expect((await store.saveTimetable(alternative, confirm(alternative))).committed).toBe(true);
+    expect((await store.reopenImportSource(incoming.sourceId)).sessions[0].courseKey).toBe(other.key);
+  });
+
+  it("rolls back new records and mapping changes if retained historical mappings cannot reopen", async () => {
+    const first = await store.reviewTimetable(sourceDraft());
+    await store.saveTimetable(first, confirm(first));
+    const deleted = first.draft.sessions[0];
+    await store.scheduleSessions.delete(deleted.id!, { expectedRevision: 1 });
+    const incoming = structuredClone(first.draft);
+    incoming.sessions = incoming.sessions.filter(row => row.id !== deleted.id);
+    incoming.sessions.push({ ...deleted, id: crypto.randomUUID(), key: "new-session", identity: "new", dayOfWeek: 1, startTime: "06:00", endTime: "07:00" });
+    const mappings = await db.table("importMappings").toArray();
+    const sessions = await store.scheduleSessions.list({}, { includeDeleted: true });
+    const review = await store.reviewTimetable(incoming);
+    const result = await store.saveTimetable(review, confirm(review));
+    expect(result.committed).toBe(false);
+    expect(await db.table("importMappings").toArray()).toEqual(mappings);
+    expect(await store.scheduleSessions.list({}, { includeDeleted: true })).toEqual(sessions);
+  });
+
+  it("keeps alias confirmation cleared across save/close/reopen and surfaces genuinely new uncertainty", async () => {
+    const first = await store.reviewTimetable(sourceDraft());
+    await store.saveTimetable(first, confirm(first));
+    const alias = structuredClone(first.draft);
+    alias.sessions[0].key = "uncertain-session-alias";
+    alias.sessions[0].unconfirmed = ["notes", "room"];
+    const initial = await store.reviewTimetable(alias);
+    expect((await store.saveTimetable(initial, confirm(initial))).committed).toBe(true);
+    const mappings = await db.table<ImportMapping>("importMappings").toArray();
+    const identities = mappings.map(({ unconfirmed, ...identity }) => { void unconfirmed; return identity; });
+    const reopened = await store.reopenImportSource(alias.sourceId);
+    reopened.sessions.find(row => row.id === alias.sessions[0].id)!.unconfirmed = [];
+    const cleared = await store.reviewTimetable(reopened);
+    const table = db.table<ImportMapping>("importMappings"), put = table.put.bind(table);
+    const write = vi.spyOn(table, "put").mockImplementationOnce(row => put(row)).mockRejectedValueOnce(new DOMException("Full", "QuotaExceededError"));
+    expect((await store.saveTimetable(cleared, confirm(cleared))).committed).toBe(false);
+    expect(await table.toArray()).toEqual(mappings);
+    write.mockRestore();
+    expect(await store.saveTimetable(cleared, confirm(cleared))).toMatchObject({ committed: true, rejected: [], created: [] });
+    store.close(); db = new UniCoreDatabase(db.name); store = new AcademicStore(db);
+    const resumed = await store.reopenImportSource(alias.sourceId);
+    expect(resumed.sessions.find(row => row.id === alias.sessions[0].id)!.unconfirmed).toEqual([]);
+    const retained = await db.table<ImportMapping>("importMappings").toArray();
+    expect(retained.map(({ unconfirmed, ...identity }) => { void unconfirmed; return identity; })).toEqual(identities);
+
+    const added = structuredClone(resumed), addedId = crypto.randomUUID();
+    added.sessions.push({ ...resumed.sessions[0], id: addedId, key: "genuinely-new-session", identity: "new", dayOfWeek: 1, startTime: "19:00", endTime: "20:00", unconfirmed: ["room"] });
+    const newRecord = await store.reviewTimetable(added);
+    expect((await store.saveTimetable(newRecord, confirm(newRecord))).committed).toBe(true);
+    const withNewRecord = await store.reopenImportSource(alias.sourceId);
+    expect(withNewRecord.sessions.find(row => row.id === addedId)!.unconfirmed).toEqual(["room"]);
+    expect(withNewRecord.sessions.find(row => row.id === alias.sessions[0].id)!.unconfirmed).toEqual([]);
+
+    const freshRow = structuredClone(withNewRecord);
+    freshRow.sessions.find(row => row.id === alias.sessions[0].id)!.key = "new-evidence-session-alias";
+    freshRow.sessions.find(row => row.id === alias.sessions[0].id)!.unconfirmed = ["room"];
+    const discovered = await store.reviewTimetable(freshRow);
+    expect((await store.saveTimetable(discovered, confirm(discovered))).committed).toBe(true);
+    expect((await store.reopenImportSource(alias.sourceId)).sessions.find(row => row.id === alias.sessions[0].id)!.unconfirmed).toEqual(["room"]);
+    for (const identity of identities)
+      expect(await db.table("importMappings").get(identity.key)).toMatchObject(identity);
+    const anotherSource = structuredClone(resumed);
+    anotherSource.sourceId = "independent-synthetic-evidence";
+    anotherSource.sessions.find(row => row.id === alias.sessions[0].id)!.unconfirmed = ["notes"];
+    const separate = await store.reviewTimetable(anotherSource);
+    expect((await store.saveTimetable(separate, confirm(separate))).committed).toBe(true);
+    expect((await store.reopenImportSource(anotherSource.sourceId)).sessions.find(row => row.id === alias.sessions[0].id)!.unconfirmed).toEqual(["notes"]);
+    expect((await store.reopenImportSource(alias.sourceId)).sessions.find(row => row.id === alias.sessions[0].id)!.unconfirmed).toEqual(["room"]);
+  });
+
   it.each(["courses", "sessions"] as const)("rejects explicitly-new %s with exact candidates in a different source", async kind => {
     const first = await store.reviewTimetable(sourceDraft());
     await store.saveTimetable(first, confirm(first));
@@ -424,6 +526,8 @@ describe("corrective source identity recovery", () => {
     const first = await store.reviewTimetable(sourceDraft());
     await store.saveTimetable(first, confirm(first));
     const originalMappings = await db.table<ImportMapping>("importMappings").toArray();
+    const editedCourse = await store.courses.update(first.draft.courses[0].id!, { code: "SYN-EDITED" }, 1);
+    const editedSession = await store.scheduleSessions.update(first.draft.sessions[0].id!, { startTime: "07:30" }, 1);
     const courses = await store.courses.list(), sessions = await store.scheduleSessions.list();
     const alias = structuredClone(first.draft);
     const oldKey = alias.courses[0].key;
@@ -434,7 +538,7 @@ describe("corrective source identity recovery", () => {
     const review = await store.reviewTimetable(alias);
     expect((await store.saveTimetable(review, confirm(review))).committed).toBe(true);
     for (const mapping of originalMappings)
-      expect(await db.table("importMappings").get(mapping.key)).toEqual(mapping);
+      expect(await db.table("importMappings").get(mapping.key)).toMatchObject({ key: mapping.key, sourceKey: mapping.sourceKey, sourceId: mapping.sourceId, entity: mapping.entity, recordId: mapping.recordId, createdAt: mapping.createdAt });
     expect(await db.table("importMappings").count()).toBe(25);
     store.close(); db = new UniCoreDatabase(db.name); store = new AcademicStore(db);
     const reopened = await store.reopenImportSource(alias.sourceId);
@@ -442,8 +546,14 @@ describe("corrective source identity recovery", () => {
     expect(reopened.sessions).toHaveLength(15);
     expect(reopened.courses.find(row => row.id === alias.courses[0].id)?.key).toBe(oldKey);
     expect(reopened.sessions.find(row => row.id === alias.sessions[0].id)?.unconfirmed).toContain("room");
+    expect(reopened.courses.find(row => row.id === editedCourse.id)?.code).toBe(editedCourse.code);
+    expect(reopened.sessions.find(row => row.id === editedSession.id)).toMatchObject({ startTime: "07:30", courseKey: first.draft.sessions[0].courseKey });
+    for (const row of reopened.sessions)
+      expect(reopened.courses.find(course => course.key === row.courseKey)?.id).toBe(sessions.find(session => session.id === row.id)!.courseId);
+    const savedMappings = await db.table<ImportMapping>("importMappings").toArray();
     const again = await store.reviewTimetable(reopened);
-    expect((await store.saveTimetable(again, confirm(again))).created).toEqual([]);
+    expect(await store.saveTimetable(again, confirm(again))).toMatchObject({ committed: true, rejected: [], created: [] });
+    expect(await db.table("importMappings").toArray()).toEqual(savedMappings);
     // Old alias keys also remain usable; one key cannot switch to another UUID.
     const conflict = structuredClone(alias);
     conflict.courses[0].id = alias.courses[1].id;

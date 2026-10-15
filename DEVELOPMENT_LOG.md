@@ -1,5 +1,20 @@
 # Development log
 
+## 2026-10-16 — Phase A corrective pass 3
+
+Correction-only follow-up to `d35127daa7d2f57bf40c1dd042558e3488358ff1`. Reproduced the retained-parent, stale Courses refresh and alias-confirmation findings before correcting them: nine focused regression cases failed against the original implementation. An additional same-turn navigation/refresh test exposed a router-state race before React committed its effects and failed until completion checked the live router location.
+
+- Review now checks the saved parent of each retained session against the final source's course mappings. Excluding an unmapped original parent blocks review with localized instructions to include that parent, select a valid saved session or exclude the conflicting session. Save additionally reopens the complete persisted source inside the existing transaction before commit, rolling back all new writes if retained historical mappings cannot recover. No session is silently reparented.
+- Courses refreshes have navigation-bound request tokens and separate pending state. Layout cleanup and live router location checks suppress stale results, errors, URL changes and finally handlers after navigation/unmount, including returning to an old history entry and overlapping requests. Refreshing the selected term does not rewrite its URL. Existing editor writes and manual setup are unchanged.
+- Explicit uncertainty confirmation applies to an entity UUID within one source. Save updates reviewed flags on every historical alias while preserving all mapping identities and creation metadata. Cleared flags survive close/reopen; new evidence still surfaces; independent sources retain their own flags. Metadata failures roll back alias updates atomically.
+- Strengthened alias round-trip coverage checks that the second save commits with no rejections or creations, every original mapping keeps its UUID, edited course codes/session times survive, and every recovered session resolves to its stored parent course. Existing import UI assertions now await the actual final review and its exact difference value rather than matching a time in a selector option.
+
+Exact changed files: `ARCHITECTURE.md`, `DATABASE.md`, `DEVELOPMENT_LOG.md`, `src/data/import-sources.ts`, `src/data/store.ts`, `src/data/timetable-review.ts`, `src/i18n/introduction.ts`, `src/pages/Courses.tsx`, `src/pages/TimetableImport.tsx`, `src/test/corrective-ui.test.tsx`, and `src/test/timetable.test.ts`.
+
+Validation: **222/222 tests passed in 13 files**, including 11 added cases. The final strengthened alias test also passed independently after its last relationship assertion was added. Controlled promises exercise Back/Forward, same-turn navigation, unmount, old/new completion ordering and stale errors without sleeps. Database tests cover blocked and resolved parent graphs, retained tombstone rollback, alias metadata quota rollback and durable confirmation. TypeScript, ESLint (zero errors/warnings), production build and diff checks passed. JavaScript: 559.83 kB / 179.13 kB gzip; CSS: 22.06 kB / 5.54 kB gzip. The existing >500 kB Vite warning remains visible. No additional browser checks were performed in this pass.
+
+No schema, dependency, route-splitting or manual setup changes. Academic records, UUIDs, user edits, revisions, tombstones, historical lecture relationships, attachment identities and Blob contents are not rewritten by these corrections. Mapping keys/UUIDs remain intact; only explicitly reviewed uncertainty metadata is reconciled. Reopenability is guaranteed at successful commit time; later explicit deletion can still break a source, and existing damaged sources fail closed rather than being repaired automatically. The accepted document-scoped manual setup idempotency limitation and memory-only unsaved drafts remain unchanged. Delivery is one local corrective commit, with no push and no Phase B work.
+
 ## 2026-10-15 — Phase A final corrective pass 2
 
 Correction-only follow-up to `747f0b15cde92e656932b4dd3ed498667731fdb5`. No Phase B, schema migration, dependency change or history rewrite.
