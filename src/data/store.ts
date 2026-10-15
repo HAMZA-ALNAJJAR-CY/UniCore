@@ -13,6 +13,7 @@ import type {
 } from "./models";
 import { assertInput, invalid, validate } from "./validation";
 import { buildTimetableReview } from "./timetable-review";
+import { fileProblem } from "../features/lectures/files";
 import { overlappingSessions } from "../features/timetable/schedule";
 import type {
   ImportMapping,
@@ -76,6 +77,91 @@ export class AcademicStore {
   }
   close() {
     this.database.close();
+  }
+
+  /** Indexed lecture workspace read. Attachment bytes are loaded only for an opened lecture. */
+  getLectureWorkspace(lectureId?: string) {
+    return this.run("r", async () => {
+      const courses = (await this.database.records("courses").toArray()).filter(
+        (row) => row.deletedAt === null,
+      );
+      const lectures = (await this.database.records("lectures").toArray())
+        .filter((row) => row.deletedAt === null)
+        .sort(
+          (a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt,
+        );
+      const sessions = (
+        await this.database.records("scheduleSessions").toArray()
+      ).filter((row) => row.deletedAt === null);
+      const lecture = lectureId
+        ? await this.active("lectures", lectureId)
+        : undefined;
+      const files = lecture
+        ? (
+            await this.database
+              .records("lectureFiles")
+              .where("lectureId")
+              .equals(lecture.id)
+              .toArray()
+          )
+            .filter((row) => row.deletedAt === null)
+            .map(({ blob, ...metadata }) => {
+              void blob;
+              return metadata;
+            })
+        : [];
+      return { courses, lectures, sessions, lecture, files };
+    });
+  }
+
+  /** Independent per-file transactions: partial successes are retained, retries use stable caller IDs. */
+  async attachLectureFiles(
+    lectureId: string,
+    inputs: readonly { id: string; fileName: string; blob: Blob }[],
+  ) {
+    const outcomes: {
+      id: string;
+      status: "saved" | "skipped" | "failed";
+      problem?: ReturnType<typeof fileProblem>;
+      code?: DataErrorCode;
+    }[] = [];
+    for (const input of inputs) {
+      try {
+        const id = canonicalUuid(input.id),
+          parent = canonicalUuid(lectureId);
+        const problem = fileProblem(input.fileName, input.blob);
+        if (problem) {
+          outcomes.push({ id, status: "failed", problem });
+          continue;
+        }
+        const status = await this.run("rw", async () => {
+          await this.active("lectures", parent);
+          const existing = await this.database.records("lectureFiles").get(id);
+          if (existing) {
+            if (existing.lectureId !== parent || existing.deletedAt !== null)
+              throw new DataError(
+                "CONFLICT",
+                "Upload identity is reserved or was removed.",
+              );
+            return "skipped" as const;
+          }
+          await this.insert(
+            "lectureFiles",
+            { lectureId: parent, fileName: input.fileName, blob: input.blob },
+            id,
+          );
+          return "saved" as const;
+        });
+        outcomes.push({ id, status });
+      } catch (error) {
+        outcomes.push({
+          id: input.id,
+          status: "failed",
+          code: error instanceof DataError ? error.code : "UNAVAILABLE",
+        });
+      }
+    }
+    return outcomes;
   }
 
   /** Consistent management read, without seeding or fetching attachment bytes. */

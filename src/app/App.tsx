@@ -16,6 +16,7 @@ import { NotFound } from "../pages/NotFound";
 import { ToastProvider } from "../components/ToastProvider";
 import { TimetableImport } from "../pages/TimetableImport";
 import { Courses } from "../pages/Courses";
+import { Lectures } from "../pages/Lectures";
 import { Calendar } from "../pages/Calendar";
 import { useLanguage, setLanguage } from "../i18n/locale";
 
@@ -119,7 +120,7 @@ export function App() {
           <Route path="courses" element={<Courses />} />
           <Route path="courses/import" element={<TimetableImport />} />
           <Route path="calendar" element={<Calendar />} />
-          <Route path="lectures" element={<PlannedPage kind="lectures" />} />
+          <Route path="lectures" element={<Lectures />} />
           <Route path="materials" element={<PlannedPage kind="materials" />} />
           <Route path="*" element={<NotFound />} />
         </Route>

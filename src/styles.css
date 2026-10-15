@@ -988,3 +988,36 @@ main:focus {
     font-size: 20px;
   }
 }
+.lecture-workspace :is(input, select) {
+  max-width: 100%;
+  min-width: 0;
+}
+.lecture-workspace input[type="file"] {
+  white-space: normal;
+  width: 100%;
+  padding: 14px;
+}
+.lecture-workspace fieldset {
+  border: 0;
+  min-width: 0;
+  padding: 0;
+}
+.lecture-workspace :is(h2, h3, strong, p, bdi) {
+  overflow-wrap: anywhere;
+}
+.lecture-workspace h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-block: 12px;
+}
+.lecture-workspace .managed-session > div {
+  min-width: 0;
+}
+@media (max-width: 767px) {
+  .lecture-workspace .managed-session {
+    align-items: stretch;
+  }
+  .lecture-workspace .managed-session > div {
+    width: 100%;
+  }
+}

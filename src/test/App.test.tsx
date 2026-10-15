@@ -34,7 +34,7 @@ describe("Phase 0 shell", () => {
       expect(
         screen.getByRole("heading", { level: 1, name: label }),
       ).toBeInTheDocument();
-      if (label !== "المقررات" && label !== "التقويم")
+      if (label !== "المقررات" && label !== "التقويم" && label !== "المحاضرات")
         expect(
           screen.getByText("هذه المساحة مخططة لمرحلة لاحقة."),
         ).toBeInTheDocument();

@@ -55,3 +55,13 @@ Phase 2 supersedes the earlier language/dashboard/calendar deferrals. Out of sco
 Service worker caching, installable PWA manifest, cloud sync, authentication, integrations, term/lecture/material editing, complete language switching and backup/restore need later-phase implementation. Dexie local persistence, timetable review/import and course/session management exist; no cloud database is configured. AI belongs to V2.
 
 Production hosts must provide history fallback to `index.html`. The shell is not evidence of offline access or storage support.
+
+## Phase 2.5 lecture workspace
+
+`pages/Lectures.tsx` replaces `/lectures` only. The form creates an actual Lecture through the public repository with a real course and valid date; a schedule link is optional and validated against course ownership. The workspace uses centralized `i18n/lectures.ts` messages and preserves active form/File objects when switching language. No notes, recurring generation or media viewer is introduced.
+
+`getLectureWorkspace(openedId?)` reads courses, sessions and lectures consistently. Only an opened lecture's indexed file collection is read; metadata without Blobs is returned to UI state. Download retrieves the selected Blob separately. This still reads the opened collection's Blobs internally before stripping them; no pagination/streaming or large-library performance guarantee is claimed.
+
+`attachLectureFiles` validates extension/MIME/size using `features/lectures/files.ts`, then runs one transaction per stable caller upload ID. It returns saved/skipped/failed for every file with validation or storage reason codes. Existing IDs never replace bytes, deleted identities are rejected, and parent checks prevent orphans. Partial successes intentionally commit independently. The UI filters successful rows out of retry, retains failed rows/IDs, and uses an immediate ref lock as well as disabled controls to block repeated submissions.
+
+Lecture/file deletion uses default restricted repository deletes with expected revisions and separate visible confirmation. No cascade is requested. Binary download URLs are retained for 60 seconds after initiation and revoked then or on workspace unmount. Filenames are text-rendered; there is no iframe, object, HTML injection, or executable file preview. No schema migration or dependency is needed. Earlier lecture-workspace deferrals are superseded only for this narrow early-beta scope.

@@ -121,3 +121,11 @@ Stable IDs, timestamps and tombstones prepare for later synchronization. Local r
 Phase 1B includes the first-semester 2026/2027 extraction as an editable in-memory draft, never an automatic seed. Critical Thinking and Discrete Mathematics instructors remain null until corrected; the rejected Discrete Mathematics OCR name is absent. B203's asterisk is an unconfirmed source note only. Users can correct/add/exclude draft courses and sessions before confirming. Existing saved data can only be kept or excluded during re-import, not overwritten. Unsaved drafts do not survive page reload.
 
 Browser storage is origin-specific and may be cleared or evicted. Persistence is not a backup or offline application loading guarantee. No PWA/service worker, Supabase, authentication, cloud sync or general academic management screens are implemented here.
+
+## Phase 2.5 attachments (v3 unchanged)
+
+The existing lectureFiles store persists actual Blob bytes plus parent UUID, filename, derived MIME/size, timestamps, revision and tombstone. Managed uploads now enforce a 100 MiB per-file beta cap and format policy; existing low-level Blob APIs/data remain backward compatible. The cap bounds each clone/write and excludes empty files, but is not a device quota estimate or capacity promise. No aggregate library limit, pagination, streaming or file purging is added.
+
+Each managed upload candidate contains a stable UUID, filename and Blob. Its independent transaction checks the active lecture, validates the file and inserts only if its ID is absent. Existing active IDs for that parent return skipped unchanged, regardless of incoming bytes. Cross-parent or tombstoned IDs reject. Every candidate reports saved/skipped/failed and a reason code; quota failure retains already committed siblings. Retry only unsaved candidates using their original IDs. If an entire browser reload loses the pending selection, users must reselect; content-level deduplication is unavailable.
+
+Lecture removal is blocked while active files exist. Individual file deletion requires confirmation/revision and retains its Blob tombstone, so deletion does not free storage. No automatic cascade or reset is used to address quota. Downloads preserve the original bytes with a binary download MIME wrapper and release temporary object URLs. Files are not synchronized or backed up across devices.

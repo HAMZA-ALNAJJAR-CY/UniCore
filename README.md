@@ -47,9 +47,17 @@ Developers use `createAcademicStore()` from `src/data`, never direct Dexie table
 - Complete Arabic/English system UI catalogs, accessible persistent language selection, immediate RTL/LTR updates, localized dates/numbers and translated validation/errors. Academic names and source content retain their original language.
 - No schema or dependency changes. Data reads occur on route mount, term selection or explicit refresh, not every timer tick. No recent-activity history is invented.
 
+## Phase 2.5 — lecture attachments early beta
+
+`/lectures` now supports explicit lecture creation for an existing course, a selected date and an optional same-course schedule session. Open a lecture to select multiple files, review per-file results, retry unsaved files, download originals, or confirm individual attachment removal. Active files block lecture deletion; course management also blocks historical lecture dependencies. No recurring lectures are generated.
+
+Attachments are IndexedDB Blobs, local to the current browser/origin and not synchronized. The new upload path accepts MP3/WAV/M4A/AAC/OGG/FLAC/Opus audio, MP4/WebM/MOV video, JPG/JPEG/PNG/WebP images, PDF/Office/text/CSV/OpenDocument files, up to **100 MiB per nonempty file**. Extension and MIME compatibility are checked; missing/generic MIME is allowed only for known extensions. These checks are not malware scanning. Files are downloaded as binary, never rendered or executed inside UniCore. No previews/player/editor are included.
+
+Each file has an independent transaction: failures do not discard successful siblings. Retry IDs are retained while the selection remains mounted, and existing IDs are skipped without replacing bytes. Picking a file again intentionally creates a new upload identity; content deduplication is not implemented. Soft deletion retains Blob bytes and does not reclaim quota. Browser eviction/clearing may lose files; no backup or permanence guarantee exists. Schema remains v3 and dependencies are unchanged.
+
 ## Planned, not implemented
 
-Term editing, lecture/material management screens, monthly calendar, calendar events/holidays, authentication, Supabase, cloud sync, Google Calendar integration, backup/restore, service worker, offline application loading, and PWA installation. AI belongs to V2. Unsaved import/editor drafts are lost on reload. Cross-tab updates require explicit refresh; revision checks prevent stale saves. The selected term defaults to the latest stored academic year/semester, not inferred active dates; select the appropriate term explicitly. Stored start/end dates restrict recurrence when supplied. Without dates, weekly recurrence is projected indefinitely and labeled accordingly.
+Term editing, advanced lecture/material workspaces, monthly calendar, calendar events/holidays, authentication, Supabase, cloud sync, Google Calendar integration, backup/restore, service worker, offline application loading, and PWA installation. AI belongs to V2. Unsaved import/editor drafts are lost on reload. Cross-tab updates require explicit refresh; revision checks prevent stale saves. The selected term defaults to the latest stored academic year/semester, not inferred active dates; select the appropriate term explicitly. Stored start/end dates restrict recurrence when supplied. Without dates, weekly recurrence is projected indefinitely and labeled accordingly.
 
 Placeholder pages show planned labels and contain no fake feature controls. Dashboard cards are real navigation links. The toast API is available to developers but has no demonstration button in the product.
 
