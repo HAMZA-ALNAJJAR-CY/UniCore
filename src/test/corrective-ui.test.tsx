@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createAcademicStore, type AcademicTerm } from "../data";
+import { createAcademicStore, DataError, type AcademicTerm } from "../data";
 import { Courses } from "../pages/Courses";
 import { Dashboard } from "../pages/Dashboard";
 import { Home, Introduction, ManualSetup, Settings } from "../pages/Introduction";
@@ -49,6 +49,43 @@ function deferred<T>() {
   const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
   return { promise, resolve, reject };
 }
+
+it("retries the URL's valid nondefault Courses term after its initial read fails", async () => {
+  const { a, b, course } = await terms();
+  const get = store.getTimetable.bind(store), snapshot = await get(a.id);
+  expect((await get()).termId).toBe(b.id);
+  const initial = deferred<typeof snapshot>(), retry = deferred<typeof snapshot>();
+  const read = vi.spyOn(store, "getTimetable")
+    .mockImplementationOnce(() => initial.promise)
+    .mockImplementationOnce(() => retry.promise);
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?term=" + a.id],
+  });
+  const view = render(<RouterProvider router={router} />);
+  await waitFor(() => expect(read).toHaveBeenCalledExactlyOnceWith(a.id));
+  await act(async () => initial.reject(new DataError("UNAVAILABLE", "Synthetic transient read failure")));
+  expect(screen.getByRole("alert")).toHaveTextContent(t.unavailable);
+  expect(router.state.location.search).toBe("?term=" + a.id);
+  expect(screen.queryByRole("article", { name: course.name })).not.toBeInTheDocument();
+  const key = router.state.location.key;
+  const refresh = screen.getByRole("button", { name: t.retry });
+  expect(refresh).toBeEnabled();
+  fireEvent.click(refresh);
+  expect(read).toHaveBeenNthCalledWith(2, a.id);
+  expect(refresh).toBeDisabled();
+  expect(screen.getByText(t.loading)).toHaveAttribute("role", "status");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  await act(async () => retry.resolve(snapshot));
+  await screen.findByRole("article", { name: course.name });
+  expect(read).toHaveBeenCalledTimes(2);
+  expect(read).not.toHaveBeenCalledWith(undefined);
+  expect(screen.getByLabelText(t.term)).toHaveValue(a.id);
+  expect(router.state.location.search).toBe("?term=" + a.id);
+  expect(router.state.location.key).toBe(key);
+  expect(refresh).toBeEnabled();
+  expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+  view.unmount(); router.dispose();
+});
 
 it("ignores a refresh settling after router navigation but before React commits its effects", async () => {
   const { a, b, course } = await terms();
@@ -425,9 +462,16 @@ it("sets loading state during a term transition and does not leave old records e
   await waitFor(() => expect(screen.queryByText(t.loading)).not.toBeInTheDocument());
 });
 
-it("recovers an invalid term URL without leaving old records editable or loading forever", async () => {
+it.each(["malformed", "missing", "deleted"] as const)("recovers a %s term URL without leaving old records editable or loading forever", async kind => {
   const { a, b, course } = await terms();
-  render(<MemoryRouter initialEntries={["/courses?term=" + a.id]}><Probe jump="/courses?term=invalid" /><Courses store={store} /></MemoryRouter>);
+  let unavailableId = kind === "malformed" ? "invalid" : crypto.randomUUID();
+  if (kind === "deleted") {
+    const removed = await store.academicTerms.create({ name: "Synthetic removed term", academicYear: "2030/2031", semester: 1 });
+    unavailableId = removed.id;
+    await store.academicTerms.delete(removed.id, { expectedRevision: removed.revision });
+  }
+  const read = vi.spyOn(store, "getTimetable");
+  render(<MemoryRouter initialEntries={["/courses?term=" + a.id]}><Probe jump={"/courses?term=" + unavailableId} /><Courses store={store} /></MemoryRouter>);
   await screen.findByRole("article", { name: course.name });
   fireEvent.click(screen.getByRole("button", { name: "Change route" }));
   await screen.findByRole("alert");
@@ -436,6 +480,33 @@ it("recovers an invalid term URL without leaving old records editable or loading
   expect(retry).toBeEnabled(); fireEvent.click(retry);
   await waitFor(() => expect(screen.getByLabelText(t.term)).toHaveValue(b.id));
   expect(screen.getByLabelText("Current route")).toHaveTextContent("/courses?term=" + b.id);
+  expect(read).toHaveBeenNthCalledWith(3, unavailableId);
+  expect(read).toHaveBeenLastCalledWith();
+});
+
+it("does not fall back when an invalid-term retry rejects after Courses navigation", async () => {
+  const { b } = await terms();
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?term=invalid"],
+  });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("alert");
+  const pending = deferred<Awaited<ReturnType<typeof store.getTimetable>>>();
+  const read = vi.spyOn(store, "getTimetable").mockImplementationOnce(() => pending.promise);
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  expect(read).toHaveBeenCalledExactlyOnceWith("invalid");
+  await act(async () => { await router.navigate("/courses?term=" + b.id); });
+  await waitFor(() => expect(screen.getByLabelText(t.term)).toHaveValue(b.id));
+  const key = router.state.location.key;
+  await act(async () => pending.reject(new DataError("VALIDATION", "Synthetic invalid UUID")));
+  expect(read.mock.calls).toEqual([["invalid"], [b.id]]);
+  expect(router.state.location.search).toBe("?term=" + b.id);
+  expect(router.state.location.key).toBe(key);
+  expect(screen.getByLabelText(t.term)).toHaveValue(b.id);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: t.retry })).toBeEnabled();
+  view.unmount(); router.dispose();
 });
 
 it("blocks browser history navigation until the user keeps or explicitly discards the editor", async () => {

@@ -410,7 +410,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     };
   }, [store, requestedTerm, protectedTermId, setParams]);
 
-  async function load(termId = data?.termId) {
+  async function load(termId = requestedTerm ?? data?.termId) {
     const operation = Symbol("course refresh");
     refreshOperation.current = operation;
     const current = () => {
@@ -423,7 +423,14 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     setError("");
     setNotice("");
     try {
-      const snapshot = await store.getTimetable(termId);
+      const snapshot = await store.getTimetable(termId).catch((failure: unknown) => {
+        // Only a definitively invalid/missing term permits default selection.
+        // Storage failures must retain the URL's term even without loaded data.
+        if (current() && termId && failure instanceof DataError &&
+          (failure.code === "VALIDATION" || failure.code === "NOT_FOUND"))
+          return store.getTimetable();
+        throw failure;
+      });
       if (!current()) return;
       setData(snapshot);
       loadedContext.current = { store, termId: snapshot.termId };

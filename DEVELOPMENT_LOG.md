@@ -1,5 +1,13 @@
 # Development log
 
+## 2026-10-16 — Phase A selected-term retry correction
+
+Narrow P2 correction to `01175a4892fe809ac90d3dc8ade38300d20355bc`. A Courses-specific controlled regression first failed against that commit: after a valid nondefault term's initial read rejected, Refresh data passed `undefined` instead of the requested UUID. Retry now prefers the URL's requested term independently of the loaded snapshot. Default-term recovery is separate and occurs only after a definitive `VALIDATION` or `NOT_FOUND` error; a transient storage error never triggers fallback. Existing navigation/request guards also gate fallback initiation and completion.
+
+The new regression controls both the failed initial read and successful retry, verifies the retry argument, and checks the preserved term URL/history entry, selected term, course data, error and loading states. Expanded invalid-term coverage verifies malformed, missing and tombstoned term recovery. Another controlled case verifies that a delayed invalid-term rejection after navigation cannot initiate fallback or change the new page's state. Five focused cases passed; the suite grew by four cases from 222 to **226/226 passing tests in 13 files**. No sleeps or arbitrary timing assumptions were added.
+
+TypeScript, ESLint, production build and diff checks passed. JavaScript: 559.96 kB / 179.17 kB gzip; CSS: 22.06 kB / 5.54 kB gzip. The existing Vite >500 kB warning remains. Exact changed files: `src/pages/Courses.tsx`, `src/test/corrective-ui.test.tsx`, and `DEVELOPMENT_LOG.md`. No schema/dependency or database-layer changes, no academic record/mapping/revision/tombstone/attachment/Blob writes, and no unrelated refactoring. Tests use isolated synthetic databases. One local commit only; nothing pushed and Phase B not started.
+
 ## 2026-10-16 — Phase A corrective pass 3
 
 Correction-only follow-up to `d35127daa7d2f57bf40c1dd042558e3488358ff1`. Reproduced the retained-parent, stale Courses refresh and alias-confirmation findings before correcting them: nine focused regression cases failed against the original implementation. An additional same-turn navigation/refresh test exposed a router-state race before React committed its effects and failed until completion checked the live router location.
