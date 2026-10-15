@@ -1,5 +1,27 @@
 # Development log
 
+## 2026-10-15 — Phase A final corrective pass 2
+
+Correction-only follow-up to `747f0b15cde92e656932b4dd3ed498667731fdb5`. No Phase B, schema migration, dependency change or history rewrite.
+
+Root causes and corrections:
+
+- Review previously resolved exact candidates before honoring `identity: "new"`. New choices now reject source bindings, saved UUIDs and exact duplicates, including tombstones, with a localized actionable error. Existing selection, difference review and keep-existing behavior remain unchanged.
+- Save retained source-key aliases while reopen rejected duplicate record UUIDs. Recovery now explicitly supports many keys per entity UUID: one deterministic oldest representative, source-key tie-break, unioned uncertainty and correctly connected sessions. Old mappings remain stored; key reassignment, broken parents and missing/deleted records still fail closed.
+- The navigation guard previously allowed discard during a pending course save; its captured-term refresh could then overwrite a later term's display. Pending discard is disabled, the editor stays bound through its refresh, and completion resets the attempted navigation while staying at the original term. A write token suppresses completion after unmount/store change. Transactions are never claimed to be cancelled.
+- Manual setup's component-local submission ref reset on remount. A shared repository-scoped single-flight operation now retains pending/failed fields and saved identity across mounts. Only the initiating mounted instance navigates automatically; returning instances require explicit continuation. Rejection retains fields for a safe repository retry. Cancelling/consuming an operation explicitly resets it. No time-based/natural-key suppression is used.
+- Refresh previously pushed unchanged query state; history-driven loads retained stale snapshots/status. Same-term refresh now changes only a read counter. Each selection/read attempt has a distinct result identity, so Back/Forward (including interrupted reads) show loading without another term's data; failure is explicit and refresh retries the requested term.
+
+Exact changed files: `src/components/EditorNavigationGuard.tsx`, `src/data/import-sources.ts`, `src/data/timetable-review.ts`, `src/data/timetable-types.ts`, new `src/features/manualSetup.ts`, `src/features/timetable/useTimetable.ts`, `src/i18n/introduction.ts`, `src/pages/Courses.tsx`, `src/pages/Introduction.tsx`, `src/pages/TimetableImport.tsx`, `src/test/corrective-ui.test.tsx`, `src/test/timetable.test.ts`, `README.md`, `ARCHITECTURE.md`, `DATABASE.md`, and this log.
+
+Added ten regression cases (201 -> 211): different-source explicit-new course/session conflicts; mapped/selected/tombstoned identity conflicts; course/session alias save/reopen and key reassignment; exact pending course save/Back/discard sequence; two-mount pending manual creation and explicit continuation; failed manual operation/remount/retry; repeated refresh history; Back/Forward read failure/retry and interrupted reads; localized import UI conflict and existing-selection recovery. Existing migration, atomic rollback, revision, mapping, tombstone and lecture/material Blob preservation cases still pass.
+
+Validation: full Vitest suite passed **211/211 in 13 files**; TypeScript passed; ESLint passed with zero warnings/errors; production build passed. JS 558.00 kB / 178.43 kB gzip; CSS 22.06 kB / 5.54 kB gzip. Vite's >500 kB warning remains visible. Measured Rollup module contributions are in ARCHITECTURE.md: React DOM dominates, followed by application/React Router/Dexie. Route lazy loading is a separate follow-up because of shared page/data modules and required async loading/error/focus/direct-navigation coverage; no warning suppression or unrelated routing rewrite.
+
+Browser checks against production preview on isolated origin `http://127.0.0.1:4178` used only synthetic terms/course: repository term creation, editor Back/keep/save, original-term ownership, unlocked controls, calendar selection, three refreshes followed by one Back returning to the prior term, selected-term reload, and manual draft retention through route unmount/remount. Arabic mobile at 390x844 retained the draft and showed no horizontal overflow. No console errors; viewport reset and temporary tab closed. Evidence outside repository: `../phase-a-pass2-mobile.jpg`. Pending transaction timing and read failures were reproduced with controlled promises in DOM/service regression tests, not injected into the production browser.
+
+Limitations: setup operation sharing is document/repository-instance scoped; reloads, other tabs and independently constructed repositories do not share it. Unsaved import/editor drafts remain memory-only. Reopening sources reconstructs saved values, not an original source document; damaged/deleted sources require explicit investigation. Earlier personal-looking fixture data remains in Git history. No existing academic records, revisions, tombstones, mapping identities, attachment identities or Blob bytes were deleted/rekeyed/migrated by this pass. Delivery is one local corrective commit only; no push, stop before Phase B.
+
 ## 2026-10-14 — Phase 0 foundation
 
 Starting repository: `HAMZA-ALNAJJAR-CY/UniCore`, branch `main`, initial commit `baa6d97`, README only. Existing history is preserved.

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createAcademicStore } from "../data";
+import { manualSetupOperation, type ManualSetupStore } from "../features/manualSetup";
 import { Dashboard } from "./Dashboard";
 import { PageHeader } from "../components/PageHeader";
 import { introductionText as t } from "../i18n/introduction";
@@ -115,47 +116,36 @@ export function Home({ source = store }: { source?: PresenceStore }) {
 export function ManualSetup({
   source = store,
 }: {
-  source?: Pick<ReturnType<typeof createAcademicStore>, "academicTerms">;
+  source?: ManualSetupStore;
 }) {
   useLanguage();
   const navigate = useNavigate();
-  const mounted = useRef(false), submitting = useRef(false);
+  const mounted = useRef<ReturnType<typeof manualSetupOperation> | null>(null);
+  const operation = useMemo(() => manualSetupOperation(source), [source]);
+  const { name, year, semester, status, termId } = useSyncExternalStore(operation.subscribe, operation.snapshot);
+  const busy = status === "pending", error = status === "failed";
   useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
-  }, []);
-  const [name, setName] = useState(""),
-    [year, setYear] = useState(""),
-    [semester, setSemester] = useState("1"),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(false);
+    mounted.current = operation;
+    return () => { mounted.current = null; };
+  }, [operation]);
+  function openTerm(id: string) {
+    finishIntroduction();
+    navigate("/courses?term=" + id, { replace: true });
+    operation.clear();
+  }
   return (
     <div className="timetable-review">
       <PageHeader title={t.newTerm} description={t.termHint} />
+      {status === "saved" && termId ? <section className="review-card">
+        <p role="status">{t.createdTerm}</p>
+        <button onClick={() => openTerm(termId)}>{t.openTerm}</button>
+      </section> :
       <form
         className="review-card"
         onSubmit={async (event) => {
           event.preventDefault();
-          if (submitting.current) return;
-          submitting.current = true;
-          setBusy(true);
-          setError(false);
-          try {
-            const term = await source.academicTerms.create({
-              name,
-              academicYear: year,
-              semester: Number(semester),
-            });
-            if (mounted.current) {
-              finishIntroduction();
-              navigate("/courses?term=" + term.id, { replace: true });
-            }
-          } catch {
-            if (mounted.current) setError(true);
-          } finally {
-            submitting.current = false;
-            if (mounted.current) setBusy(false);
-          }
+          const id = await operation.submit();
+          if (id && mounted.current === operation) openTerm(id);
         }}
       >
         {busy && <p role="status">{t.savingTerm}</p>}
@@ -166,7 +156,7 @@ export function ManualSetup({
               <input
                 required
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => operation.edit({ name: event.target.value })}
               />
             </label>
             <label className="review-field">
@@ -174,7 +164,7 @@ export function ManualSetup({
               <input
                 required
                 value={year}
-                onChange={(event) => setYear(event.target.value)}
+                onChange={(event) => operation.edit({ year: event.target.value })}
               />
             </label>
             <label className="review-field">
@@ -186,17 +176,17 @@ export function ManualSetup({
                 required
                 dir="ltr"
                 value={semester}
-                onChange={(event) => setSemester(event.target.value)}
+                onChange={(event) => operation.edit({ semester: event.target.value })}
               />
             </label>
           </div>
           {error && <p role="alert">{t.saveError}</p>}
           <div className="management-actions">
             <button type="submit">{t.create}</button>
-            <button type="button" disabled={busy} onClick={() => { if (!submitting.current) navigate("/"); }}>{t.cancel}</button>
+            <button type="button" disabled={busy} onClick={() => { if (operation.snapshot().status !== "pending") { operation.clear(); navigate("/"); } }}>{t.cancel}</button>
           </div>
         </fieldset>
-      </form>
+      </form>}
     </div>
   );
 }

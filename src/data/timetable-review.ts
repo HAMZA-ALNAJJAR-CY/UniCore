@@ -76,6 +76,12 @@ export async function buildTimetableReview(
     const binding = bindings.find(
       (row) => row.key === keyFor(draft.sourceId, kind, key),
     );
+    const explicit = requestedId
+      ? await db.records(kind).get(canonicalUuid(requestedId))
+      : undefined;
+    // "New" is a decision, not a fallback. Never reinterpret it as reuse.
+    if (identity === "new" && (binding || explicit || candidates.length))
+      fail(t.newIdentityConflict);
     let id = binding?.recordId ?? requestedId;
     if (
       binding &&
@@ -84,9 +90,6 @@ export async function buildTimetableReview(
     )
       fail(tr("text_214"));
     if (!binding) {
-      const explicit = requestedId
-        ? await db.records(kind).get(canonicalUuid(requestedId))
-        : undefined;
       if (explicit) id = explicit.id;
       else if (candidates.length > 1) fail(tr("text_215"));
       else if (candidates.length === 1) id = candidates[0].id;
@@ -163,6 +166,7 @@ export async function buildTimetableReview(
     draft.term.id,
     terms.filter((row) => row.semester === draft.term.semester),
     draft.term.unconfirmed,
+    draft.term.identity,
   );
   draft.term.id = termMatch.id;
   const { key: termKey, unconfirmed: termUnknown, identity: termIdentity, ...termInput } = draft.term;

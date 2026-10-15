@@ -3,29 +3,33 @@ import { UNSAFE_DataRouterContext, useBlocker } from "react-router-dom";
 import { introductionText as t } from "../i18n/introduction";
 
 /** Data-router guard also covers browser Back/Forward, which click handlers cannot intercept. */
-type GuardProps = { enabled: boolean; onDiscard: () => void };
+type GuardProps = { enabled: boolean; pending: boolean; onDiscard: () => void };
 
-export function EditorNavigationGuard({ enabled, onDiscard }: GuardProps) {
+export function EditorNavigationGuard(props: GuardProps) {
   const context = useContext(UNSAFE_DataRouterContext);
-  return context ? <BlockedNavigation enabled={enabled} onDiscard={onDiscard} /> : null;
+  return context ? <BlockedNavigation {...props} /> : null;
 }
 
-function BlockedNavigation({ enabled, onDiscard }: GuardProps) {
+function BlockedNavigation({ enabled, pending, onDiscard }: GuardProps) {
   const blocker = useBlocker(({ currentLocation, nextLocation }) => enabled &&
     (currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search));
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
-    if (blocker.state === "blocked") heading.current?.focus();
-  }, [blocker.state]);
+    if (blocker.state !== "blocked") return;
+    // Completion stays on the original page; do not execute an old Back attempt.
+    if (!enabled) blocker.reset();
+    else heading.current?.focus();
+  }, [blocker, enabled]);
   if (blocker.state !== "blocked") return null;
   return <section className="review-card" role="region" aria-labelledby="blocked-navigation-title">
     <h2 id="blocked-navigation-title" tabIndex={-1} ref={heading}>{t.finishEditing}</h2>
+    {pending && <p role="status">{t.pendingWrite}</p>}
     <div className="management-actions">
       <button onClick={() => {
         blocker.reset();
         document.querySelector<HTMLElement>(".management-editor h2")?.focus();
       }}>{t.keepEditing}</button>
-      <button onClick={() => { onDiscard(); blocker.proceed(); }}>{t.discardAndLeave}</button>
+      <button disabled={pending} onClick={() => { if (!pending) { onDiscard(); blocker.proceed(); } }}>{t.discardAndLeave}</button>
     </div>
   </section>;
 }

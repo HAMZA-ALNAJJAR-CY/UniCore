@@ -343,6 +343,9 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [editorTermId, setEditorTermId] = useState<string | undefined>();
   const [removal, setRemoval] = useState<Removal | null>(null);
+  const [pendingWrite, setPendingWrite] = useState(false);
+  const writeOperation = useRef<symbol | null>(null);
+  useEffect(() => () => { writeOperation.current = null; }, [store]);
   const protectedTermId = editor ? editorTermId : removal?.record.academicTermId;
   const loadedContext = useRef<{ store: Store; termId: string | undefined } | null>(null);
   useEffect(() => {
@@ -420,6 +423,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     setError("");
   }
   function cancel() {
+    if (writeOperation.current) return;
     setEditor(null);
     setRemoval(null);
     setError("");
@@ -429,24 +433,42 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     session = false,
     deleting = false,
   ) {
+    if (writeOperation.current) return;
+    const operation = Symbol("course write");
+    writeOperation.current = operation;
+    const termId = protectedTermId ?? data?.termId;
+    const current = () => writeOperation.current === operation;
+    setPendingWrite(true);
     setBusy(true);
     setError("");
     setNotice("");
     try {
       await action();
-      setEditor(null);
-      setRemoval(null);
+      if (!current()) return;
       setNotice(deleting ? t.removed : t.saved);
       // A refresh failure must not report a committed write as a failed save.
       try {
-        setData(await store.getTimetable(data?.termId));
+        const snapshot = await store.getTimetable(termId);
+        if (current()) {
+          setData(snapshot);
+          loadedContext.current = { store, termId: snapshot.termId };
+        }
       } catch (failure) {
-        setError(errorText(failure));
+        if (current()) {
+          setData(null);
+          loadedContext.current = null;
+          setError(errorText(failure));
+        }
       }
+      if (current()) { setEditor(null); setRemoval(null); }
     } catch (failure) {
-      setError(errorText(failure, session));
+      if (current()) setError(errorText(failure, session));
     } finally {
-      setBusy(false);
+      if (current()) {
+        writeOperation.current = null;
+        setPendingWrite(false);
+        setBusy(false);
+      }
     }
   }
   async function preview(
@@ -538,7 +560,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   }
   return (
     <div className="timetable-review timetable-management">
-      <EditorNavigationGuard enabled={!!protectedTermId} onDiscard={cancel} />
+      <EditorNavigationGuard enabled={!!protectedTermId} pending={pendingWrite} onDiscard={cancel} />
       <PageHeader title={t.title} description={t.description} />
       <div className="management-toolbar">
         <Link className="button-link" to="/courses/import">

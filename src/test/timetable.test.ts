@@ -387,6 +387,72 @@ describe("Atomic confirmed import and re-import", () => {
 });
 
 describe("corrective source identity recovery", () => {
+  it.each(["courses", "sessions"] as const)("rejects explicitly-new %s with exact candidates in a different source", async kind => {
+    const first = await store.reviewTimetable(sourceDraft());
+    await store.saveTimetable(first, confirm(first));
+    const before = await db.table("importMappings").toArray();
+    const incoming = sourceDraft();
+    incoming.sourceId = "explicitly-new-synthetic-source";
+    incoming[kind][0].identity = "new";
+    incoming[kind][0].id = crypto.randomUUID();
+    await expect(store.reviewTimetable(incoming)).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await store.courses.list()).toHaveLength(7);
+    expect(await store.scheduleSessions.list()).toHaveLength(15);
+    expect(await db.table("importMappings").toArray()).toEqual(before);
+  });
+
+  it("rejects a new choice on a mapped key or a selected saved UUID, including tombstones", async () => {
+    const first = await store.reviewTimetable(sourceDraft());
+    await store.saveTimetable(first, confirm(first));
+    const mapped = structuredClone(first.draft);
+    mapped.sessions[0].identity = "new";
+    mapped.sessions[0].id = crypto.randomUUID();
+    mapped.sessions[0].startTime = "07:10";
+    await expect(store.reviewTimetable(mapped)).rejects.toMatchObject({ code: "CONFLICT" });
+    const explicit = structuredClone(first.draft);
+    explicit.sourceId = "different-explicit-source";
+    explicit.sessions[0].identity = "new";
+    explicit.sessions[0].startTime = "07:10";
+    await expect(store.reviewTimetable(explicit)).rejects.toMatchObject({ code: "CONFLICT" });
+    await store.scheduleSessions.delete(first.draft.sessions[0].id!, { expectedRevision: 1 });
+    const deleted = sourceDraft(); deleted.sourceId = "deleted-candidate-source";
+    deleted.sessions[0].identity = "new";
+    await expect(store.reviewTimetable(deleted)).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  it("preserves aliases for courses and sessions and reopens one deterministic row per UUID", async () => {
+    const first = await store.reviewTimetable(sourceDraft());
+    await store.saveTimetable(first, confirm(first));
+    const originalMappings = await db.table<ImportMapping>("importMappings").toArray();
+    const courses = await store.courses.list(), sessions = await store.scheduleSessions.list();
+    const alias = structuredClone(first.draft);
+    const oldKey = alias.courses[0].key;
+    alias.courses[0].key = "synthetic-course-alias";
+    alias.sessions.forEach(row => { if (row.courseKey === oldKey) row.courseKey = alias.courses[0].key; });
+    alias.sessions[0].key = "synthetic-session-alias";
+    alias.sessions[0].unconfirmed.push("room");
+    const review = await store.reviewTimetable(alias);
+    expect((await store.saveTimetable(review, confirm(review))).committed).toBe(true);
+    for (const mapping of originalMappings)
+      expect(await db.table("importMappings").get(mapping.key)).toEqual(mapping);
+    expect(await db.table("importMappings").count()).toBe(25);
+    store.close(); db = new UniCoreDatabase(db.name); store = new AcademicStore(db);
+    const reopened = await store.reopenImportSource(alias.sourceId);
+    expect(reopened.courses).toHaveLength(7);
+    expect(reopened.sessions).toHaveLength(15);
+    expect(reopened.courses.find(row => row.id === alias.courses[0].id)?.key).toBe(oldKey);
+    expect(reopened.sessions.find(row => row.id === alias.sessions[0].id)?.unconfirmed).toContain("room");
+    const again = await store.reviewTimetable(reopened);
+    expect((await store.saveTimetable(again, confirm(again))).created).toEqual([]);
+    // Old alias keys also remain usable; one key cannot switch to another UUID.
+    const conflict = structuredClone(alias);
+    conflict.courses[0].id = alias.courses[1].id;
+    await expect(store.reviewTimetable(conflict)).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await store.courses.list()).toEqual(courses);
+    expect(await store.scheduleSessions.list()).toEqual(sessions);
+    expect(await db.table("importMappings").count()).toBe(25);
+  });
+
   it("reopens mappings across connections and reviews edited session times without replacing history or Blobs", async () => {
     const first = await store.reviewTimetable(sourceDraft());
     await store.saveTimetable(first, confirm(first));

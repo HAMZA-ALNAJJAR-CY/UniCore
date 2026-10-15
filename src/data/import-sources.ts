@@ -35,7 +35,22 @@ export async function reopenSource(
     !["academicTerms", "courses", "scheduleSessions"].includes(row.entity),
   ))
     throw new DataError("CONFLICT", t.brokenSource);
-  const terms = mappings.filter(row => row.entity === "academicTerms");
+  // Aliases are many source keys -> one UUID. Present one deterministic row per
+  // UUID; retain every original mapping in storage for subsequent re-imports.
+  // Validate keys before grouping so damaged metadata cannot be hidden by it.
+  for (const kind of ["academicTerms", "courses", "scheduleSessions"] as const) {
+    const rows = mappings.filter(row => row.entity === kind);
+    if (new Set(rows.map(row => row.sourceKey)).size !== rows.length)
+      throw new DataError("CONFLICT", t.brokenSource);
+  }
+  const representatives = [...mappings]
+    .sort((a, b) => a.createdAt - b.createdAt || a.sourceKey.localeCompare(b.sourceKey))
+    .filter((row, index, rows) => rows.findIndex(other =>
+      other.entity === row.entity && other.recordId === row.recordId) === index)
+    .map(row => ({ ...row, unconfirmed: [...new Set(mappings.filter(alias =>
+      alias.entity === row.entity && alias.recordId === row.recordId)
+      .flatMap(alias => alias.unconfirmed))] }));
+  const terms = representatives.filter(row => row.entity === "academicTerms");
   if (terms.length !== 1) throw new DataError("CONFLICT", t.brokenSource);
   async function read<K extends ImportMapping["entity"]>(
     kind: K,
@@ -51,7 +66,7 @@ export async function reopenSource(
     return { ...values, key: mapping.sourceKey, unconfirmed: [...mapping.unconfirmed] };
   }
   const term = await read("academicTerms", terms[0]);
-  const courseMappings = mappings.filter(row => row.entity === "courses");
+  const courseMappings = representatives.filter(row => row.entity === "courses");
   const courses = await Promise.all(courseMappings.map(async mapping => {
     const row = await read("courses", mapping);
     if (row.academicTermId !== term.id) throw new DataError("CONFLICT", t.brokenSource);
@@ -59,7 +74,7 @@ export async function reopenSource(
     void academicTermId;
     return course;
   }));
-  const sessions = await Promise.all(mappings.filter(row => row.entity === "scheduleSessions").map(async mapping => {
+  const sessions = await Promise.all(representatives.filter(row => row.entity === "scheduleSessions").map(async mapping => {
     const row = await read("scheduleSessions", mapping);
     const course = courses.find(course => course.id === row.courseId);
     if (!course || row.academicTermId !== term.id) throw new DataError("CONFLICT", t.brokenSource);
@@ -68,14 +83,5 @@ export async function reopenSource(
     void courseId;
     return { ...session, courseKey: course.key };
   }));
-  // Reject damaged metadata rather than selecting one of several identities.
-  for (const kind of ["academicTerms", "courses", "scheduleSessions"] as const) {
-    const rows = mappings.filter(row => row.entity === kind);
-    if (
-      new Set(rows.map(row => row.sourceKey)).size !== rows.length ||
-      new Set(rows.map(row => row.recordId)).size !== rows.length
-    )
-      throw new DataError("CONFLICT", t.brokenSource);
-  }
   return { sourceId, term, courses, sessions };
 }

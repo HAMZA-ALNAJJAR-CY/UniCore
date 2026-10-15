@@ -16,6 +16,7 @@ import { introductionText as intro } from "../i18n/introduction";
 import { sourceDraft } from "./fixtures/timetable";
 import { App } from "../app/App";
 import { tr } from "../i18n/locale";
+import { useTimetable, type TimetableStore } from "../features/timetable/useTimetable";
 
 let store: ReturnType<typeof createAcademicStore>, name: string;
 beforeEach(() => {
@@ -42,6 +43,174 @@ function courseRoute(a: AcademicTerm, b: AcademicTerm, path = "/courses?term=" +
   return render(<MemoryRouter initialEntries={[path]}><Probe jump={"/courses?term=" + b.id} /><Courses store={store} /></MemoryRouter>);
 }
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
+
+it("keeps a pending course write in term A when Back targets B and discard is attempted", async () => {
+  const { a, b, course } = await terms();
+  const create = store.courses.create.bind(store.courses);
+  let release!: () => void;
+  const gate = new Promise<void>(done => { release = done; });
+  vi.spyOn(store.courses, "create").mockImplementation(async input => { await gate; return create(input); });
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?term=" + b.id, "/courses?term=" + a.id], initialIndex: 1,
+  });
+  render(<RouterProvider router={router} />);
+  await screen.findByRole("article", { name: course.name });
+  fireEvent.click(screen.getByRole("button", { name: t.addCourse }));
+  fill(t.name, "Pending A course"); fill(t.code, "PENDING-A"); fill(t.hours, "3");
+  fireEvent.click(screen.getByRole("button", { name: t.save }));
+  await act(async () => { await router.navigate(-1); });
+  const discard = await screen.findByRole("button", { name: intro.discardAndLeave });
+  expect(discard).toBeDisabled();
+  expect(screen.getByText(intro.pendingWrite)).toHaveAttribute("role", "status");
+  fireEvent.click(discard);
+  expect(router.state.location.search).toBe("?term=" + a.id);
+  await act(async () => release());
+  await screen.findByRole("article", { name: "Pending A course" });
+  await waitFor(() => expect(screen.queryByRole("button", { name: intro.discardAndLeave })).not.toBeInTheDocument());
+  expect(screen.getByLabelText(t.term)).toBeEnabled();
+  expect(router.state.location.search).toBe("?term=" + a.id);
+  await act(async () => { await router.navigate(-1); });
+  await waitFor(() => expect(screen.getByLabelText(t.term)).toHaveValue(b.id));
+  expect(screen.queryByRole("article", { name: "Pending A course" })).not.toBeInTheDocument();
+  expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+  expect((await store.getTimetable(a.id)).courses.find(row => row.code === "PENDING-A")?.academicTermId).toBe(a.id);
+  expect((await store.getTimetable(b.id)).courses).toEqual([]);
+});
+
+it("shows the explicit-new identity conflict in import review and permits selecting the saved session", async () => {
+  const first = await store.reviewTimetable(sourceDraft());
+  await store.saveTimetable(first, { confirmed: true, keepExistingKeys: [] });
+  const incoming = sourceDraft(); incoming.sourceId = "new-choice-ui-source";
+  incoming.term.id = first.draft.term.id;
+  render(<MemoryRouter><TimetableImport store={store} initialDraft={incoming} /></MemoryRouter>);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  const identity = within(screen.getByRole("region", { name: "Session 1" })).getByLabelText(intro.identity);
+  fireEvent.change(identity, { target: { value: "new" } });
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(intro.newIdentityConflict);
+  act(() => setLanguage("ar"));
+  expect(screen.getByRole("alert")).toHaveTextContent(intro.newIdentityConflict);
+  act(() => setLanguage("en"));
+  fireEvent.change(identity, { target: { value: first.draft.sessions[0].id } });
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByRole("heading", { name: "Final review" });
+  expect(await store.scheduleSessions.list()).toHaveLength(15);
+});
+
+it("shares manual setup across mounts, rejects duplicate submissions, and waits for explicit continuation", async () => {
+  const create = store.academicTerms.create.bind(store.academicTerms);
+  let release!: () => void;
+  const gate = new Promise<void>(done => { release = done; });
+  const write = vi.spyOn(store.academicTerms, "create").mockImplementation(async input => { await gate; return create(input); });
+  const mount = () => render(<MemoryRouter initialEntries={["/setup"]}><Probe /><ManualSetup source={store} /></MemoryRouter>);
+  const first = mount();
+  fill(intro.name, "Shared synthetic term"); fill(intro.year, "2040/2041");
+  fireEvent.click(screen.getByRole("button", { name: intro.create }));
+  first.unmount();
+  const second = mount();
+  expect(screen.getByLabelText(intro.name)).toHaveValue("Shared synthetic term");
+  expect(screen.getByRole("button", { name: intro.cancel })).toBeDisabled();
+  fireEvent.submit(screen.getByRole("button", { name: intro.create }).closest("form")!);
+  expect(write).toHaveBeenCalledOnce();
+  await act(async () => release());
+  await screen.findByText(intro.createdTerm);
+  expect(screen.getByLabelText("Current route")).toHaveTextContent("/setup");
+  expect(introductionComplete()).toBe(false);
+  expect(await store.academicTerms.list()).toHaveLength(1);
+  second.unmount(); mount();
+  fireEvent.click(screen.getByRole("button", { name: intro.openTerm }));
+  const term = (await store.academicTerms.list())[0];
+  expect(screen.getByLabelText("Current route")).toHaveTextContent("/courses?term=" + term.id);
+  expect(write).toHaveBeenCalledOnce();
+});
+
+it("preserves a failed manual operation across remount and retries it through repository validation", async () => {
+  const first = render(<MemoryRouter><ManualSetup source={store} /></MemoryRouter>);
+  fill(intro.name, "Retry synthetic term"); fill(intro.year, "2040/2041"); fill(intro.semester, "0");
+  fireEvent.submit(screen.getByRole("button", { name: intro.create }).closest("form")!);
+  await screen.findByRole("alert");
+  first.unmount();
+  render(<MemoryRouter><Probe /><ManualSetup source={store} /></MemoryRouter>);
+  expect(screen.getByLabelText(intro.name)).toHaveValue("Retry synthetic term");
+  expect(screen.getByLabelText(intro.semester)).toHaveValue(0);
+  expect(await store.academicTerms.list()).toEqual([]);
+  fill(intro.semester, "1");
+  fireEvent.click(screen.getByRole("button", { name: intro.create }));
+  await waitFor(() => expect(screen.getByLabelText("Current route")).toHaveTextContent("/courses?term="));
+  expect(await store.academicTerms.list()).toHaveLength(1);
+});
+
+function TimetableProbe({ source, next }: { source: TimetableStore; next: string }) {
+  const { data, loading, error, refresh } = useTimetable(source);
+  return <><output aria-label="Snapshot term">{data?.termId ?? "none"}</output>
+    <output aria-label="Read state">{loading ? "loading" : error ? "error" : "ready"}</output>
+    <button onClick={() => refresh()}>Refresh snapshot</button>
+    <button onClick={() => refresh(next)}>Select next term</button></>;
+}
+it("refreshes repeatedly without adding history entries or changing the default-term URL", async () => {
+  const { a } = await terms();
+  const router = createMemoryRouter([
+    { path: "/", element: <p>Earlier page</p> },
+    { path: "/calendar", element: <TimetableProbe source={store} next={a.id} /> },
+  ], { initialEntries: ["/", "/calendar?term=" + a.id], initialIndex: 1 });
+  render(<RouterProvider router={router} />);
+  await waitFor(() => expect(screen.getByLabelText("Read state")).toHaveTextContent("ready"));
+  const key = router.state.location.key;
+  for (let i = 0; i < 3; i++) {
+    fireEvent.click(screen.getByRole("button", { name: "Refresh snapshot" }));
+    await waitFor(() => expect(screen.getByLabelText("Read state")).toHaveTextContent("ready"));
+    expect(router.state.location.key).toBe(key);
+  }
+  await act(async () => { await router.navigate(-1); });
+  await screen.findByText("Earlier page");
+  await act(async () => { await router.navigate("/calendar"); });
+  await waitFor(() => expect(screen.getByLabelText("Read state")).toHaveTextContent("ready"));
+  fireEvent.click(screen.getByRole("button", { name: "Refresh snapshot" }));
+  await waitFor(() => expect(screen.getByLabelText("Read state")).toHaveTextContent("ready"));
+  expect(router.state.location.search).toBe("");
+});
+
+it("clears old term data during Back/Forward reads, fails explicitly, and retries the intended term", async () => {
+  const { a, b } = await terms();
+  const get = store.getTimetable.bind(store);
+  const router = createMemoryRouter([{ path: "/calendar", element: <TimetableProbe source={store} next={b.id} /> }], {
+    initialEntries: ["/calendar?term=" + b.id, "/calendar?term=" + a.id], initialIndex: 1,
+  });
+  render(<RouterProvider router={router} />);
+  await waitFor(() => expect(screen.getByLabelText("Snapshot term")).toHaveTextContent(a.id));
+  let reject!: (error: Error) => void;
+  const read = vi.spyOn(store, "getTimetable").mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+  await act(async () => { await router.navigate(-1); });
+  expect(screen.getByLabelText("Read state")).toHaveTextContent("loading");
+  expect(screen.getByLabelText("Snapshot term")).toHaveTextContent("none");
+  await act(async () => reject(new Error("Read unavailable")));
+  expect(screen.getByLabelText("Read state")).toHaveTextContent("error");
+  expect(screen.getByLabelText("Snapshot term")).toHaveTextContent("none");
+  read.mockImplementation(get);
+  fireEvent.click(screen.getByRole("button", { name: "Refresh snapshot" }));
+  await waitFor(() => expect(screen.getByLabelText("Snapshot term")).toHaveTextContent(b.id));
+  expect(read).toHaveBeenLastCalledWith(b.id);
+  let resolveA!: (snapshot: Awaited<ReturnType<typeof get>>) => void;
+  read.mockImplementationOnce(() => new Promise(done => { resolveA = done; }));
+  await act(async () => { await router.navigate(1); });
+  expect(screen.getByLabelText("Read state")).toHaveTextContent("loading");
+  expect(screen.getByLabelText("Snapshot term")).toHaveTextContent("none");
+  await act(async () => resolveA(await get(a.id)));
+  await waitFor(() => expect(screen.getByLabelText("Snapshot term")).toHaveTextContent(a.id));
+  let resolveB!: (snapshot: Awaited<ReturnType<typeof get>>) => void;
+  read.mockImplementationOnce(() => new Promise(done => { resolveB = done; }));
+  await act(async () => { await router.navigate(-1); });
+  // Return before B resolves: cached A must still enter a new loading request.
+  read.mockImplementationOnce(() => new Promise(done => { resolveA = done; }));
+  await act(async () => { await router.navigate(1); });
+  expect(screen.getByLabelText("Read state")).toHaveTextContent("loading");
+  await act(async () => resolveB(await get(b.id)));
+  expect(screen.getByLabelText("Read state")).toHaveTextContent("loading");
+  await act(async () => resolveA(await get(a.id)));
+  await waitFor(() => expect(screen.getByLabelText("Snapshot term")).toHaveTextContent(a.id));
+});
 
 it.each(["new", "existing"])("binds a dirty %s course editor to its opening term and prevents URL retargeting", async kind => {
   const { a, b, course } = await terms();

@@ -7,7 +7,7 @@ type DraftRow<T> = Omit<
   key: string;
   id?: string;
   unconfirmed: string[];
-  /** Explicit permission to insert an unmatched row alongside existing history. */
+  /** Require insertion of a separate identity; mappings/exact duplicates reject this choice. */
   identity?: "new";
 };
 export type DraftTerm = DraftRow<AcademicTerm>;

@@ -61,6 +61,10 @@ const ar = {
   identity: "هوية الصف",
   autoIdentity: "استخدام الربط أو التطابق التام",
   newIdentity: "أؤكد أن هذا صف جديد مستقل",
+  newIdentityConflict: "اختيار صف جديد يتعارض مع ربط أو سجل موجود. اختر السجل المحفوظ أو صحح هوية الصف؛ لم تُحفظ بيانات.",
+  pendingWrite: "الحفظ قيد التنفيذ ولا يمكن تجاهله. ابقَ هنا حتى ينتهي، ثم أعد محاولة المغادرة.",
+  createdTerm: "تم حفظ هذا الفصل أثناء غيابك. افتحه لمتابعة إضافة المقررات.",
+  openTerm: "فتح الفصل المحفوظ",
   existingIdentity: "سجل محفوظ",
 };
 const en: typeof ar = {
@@ -129,6 +133,10 @@ const en: typeof ar = {
   identity: "Row identity",
   autoIdentity: "Use mapping or exact match",
   newIdentity: "I confirm this is a separate new row",
+  newIdentityConflict: "The new-row choice conflicts with an existing mapping or record. Select the saved record or correct the row identity; nothing was saved.",
+  pendingWrite: "A save is in progress and cannot be discarded. Stay here until it finishes, then try leaving again.",
+  createdTerm: "This term was saved while you were away. Open it to continue adding courses.",
+  openTerm: "Open saved term",
   existingIdentity: "Saved record",
 };
 export const introductionText = dynamic(() =>

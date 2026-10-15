@@ -30,7 +30,7 @@ const STEPS = dynamic(() => [
 const nullable = (value: string) => (value.trim() ? value : null);
 function message(error: unknown) {
   if (error instanceof DataError) {
-    if (error.message === introductionText.resolveIdentity || error.message === introductionText.brokenSource) return error.message;
+    if ([introductionText.resolveIdentity, introductionText.brokenSource, introductionText.newIdentityConflict].includes(error.message)) return error.message;
     if (error.code === "IDENTITY_COLLISION") return tr("text_36");
     if (error.code === "QUOTA") return tr("text_37");
     if (error.code === "CONFLICT" || error.code === "VALIDATION")
