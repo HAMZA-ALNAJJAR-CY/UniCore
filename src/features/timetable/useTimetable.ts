@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { createAcademicStore } from "../../data";
 const store = createAcademicStore();
 export type TimetableStore = Pick<
@@ -9,19 +10,18 @@ export function useTimetable(
   source: TimetableStore = store,
   initialTermId?: string,
 ) {
+  const [params, setParams] = useSearchParams();
+  const selectedTermId = params.get("term") ?? initialTermId;
   const [data, setData] = useState<Awaited<
     ReturnType<TimetableStore["getTimetable"]>
   > | null>(null);
   const [error, setError] = useState(false),
     [loading, setLoading] = useState(true),
-    [request, setRequest] = useState({
-      termId: initialTermId,
-      version: 0,
-    });
+    [request, setRequest] = useState(0);
   useEffect(() => {
     let active = true;
     source
-      .getTimetable(request.termId)
+      .getTimetable(selectedTermId)
       .then((value) => {
         if (active) {
           setData(value);
@@ -37,14 +37,15 @@ export function useTimetable(
     return () => {
       active = false;
     };
-  }, [source, request]);
+  }, [source, request, selectedTermId]);
   return {
     data,
     error,
     loading,
     refresh: (termId = data?.termId) => {
       setLoading(true);
-      setRequest((current) => ({ termId, version: current.version + 1 }));
+      if (termId) setParams(current => { current.set("term", termId); return current; });
+      if (termId === selectedTermId || !termId) setRequest(current => current + 1);
     },
   };
 }

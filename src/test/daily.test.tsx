@@ -1,3 +1,4 @@
+import "fake-indexeddb/auto";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -159,7 +160,7 @@ describe("dashboard, calendar and language UI", () => {
     expect(mocked.getTimetable).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("link", { name: "Open Calendar" })).toHaveAttribute(
       "href",
-      "/calendar",
+      "/calendar?term=term",
     );
   });
   it("shows an empty term with a real import action", async () => {
@@ -186,7 +187,7 @@ describe("dashboard, calendar and language UI", () => {
     await screen.findByText("Sample subject");
     expect(
       screen.getByRole("link", { name: /Sample subject/ }),
-    ).toHaveAttribute("href", "/courses#course-course");
+    ).toHaveAttribute("href", "/courses?term=term#course-course");
     const heading = screen.getByRole("heading", { level: 2 }).textContent;
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByRole("heading", { level: 2 }).textContent).not.toBe(
@@ -214,7 +215,7 @@ describe("dashboard, calendar and language UI", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "Timetable review",
     );
-    expect(screen.getByLabelText("Term name")).toHaveValue("");
+    expect(await screen.findByLabelText("Term name")).toHaveValue("");
     expect(localStorage.getItem("unicore.language")).toBe("en");
     expect(tr("text_153")).toMatch(/valid day/);
     expect(

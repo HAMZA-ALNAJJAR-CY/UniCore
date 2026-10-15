@@ -233,7 +233,7 @@ describe("Phase A first-run paths", () => {
       screen.getByRole("button", { name: "Replay introduction" }),
     );
     await screen.findByRole("button", { name: "Take a quick tour" });
-    expect(introductionComplete()).toBe(false);
+    expect(introductionComplete()).toBe(true);
   });
   it("preserves a manual form draft when switching English to Arabic", () => {
     render(
@@ -249,6 +249,7 @@ describe("Phase A first-run paths", () => {
   });
   it("keeps an empty production review editable without calling the save or populated review on mount", async () => {
     const source = {
+      listImportSources: vi.fn().mockResolvedValue([]),
       academicTerms: { list: vi.fn().mockResolvedValue([]) },
       reviewTimetable: vi.fn(),
       saveTimetable: vi.fn(),

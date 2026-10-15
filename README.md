@@ -25,8 +25,8 @@ UniCore is a university management application with an offline-first PWA vision.
 
 - Arabic RTL shell and `/courses/import`, reached from Courses.
 - Five steps: editable term, courses, weekly sessions, validation, and explicit confirmation.
-- Review works with typed timetable drafts. The historical supplied sample now lives only in test fixtures; production drafts start empty and never seed records.
-- Missing instructors remain null; uncertain B203 notes remain flagged. Optional unknowns do not block saving. Overlaps and zero-minute transitions are reported separately.
+- Review works with typed timetable drafts. Tracked fixtures are fully synthetic; production never seeds academic records.
+- Missing instructors remain null and uncertain source notes remain flagged. Optional unknowns do not block saving. Overlaps and zero-minute transitions are reported separately.
 - Atomic save of term/courses/sessions and separate source mappings. Re-import shows existing records and differences; users must explicitly keep differing saved values or return to edit/exclude draft rows. Existing academic fields are never overwritten by import.
 - Additive schema v3 retains seven domain stores and adds one import-metadata store. See [RECOVERY.md](RECOVERY.md) for UUID migration recovery.
 
@@ -61,7 +61,11 @@ First-run introduction uses actual persisted record presence across all stores, 
 
 `/courses/setup` creates a real user-entered term through the repository and opens that exact term in Courses, making manual course entry usable without import. Empty dashboard/calendar/course views provide setup actions. Confirmed import returns to the Dashboard with feedback and the imported term selected. `/settings` is deliberately limited to language/local-mode information and replaying the introduction; profiles/accounts remain later work.
 
-The former personal sample is isolated in `src/test/fixtures/timetable.ts`, outside the production dependency graph. Existing saved data is never removed or rekeyed. `/courses/import` retains editable review/confirmation but opens blank, with an explicit notice: file ingestion, parsing and OCR do not exist yet and belong to roadmap Phase B. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the audit, dependency order and deferred scope.
+`/courses/import` discovers saved sources from existing mappings. Choose a source to reopen its current saved values with original source/row identities, or explicitly start a new source. The source query survives reload. Unmatched rows alongside existing history require an explicit saved-record or new-row decision; matching never uses fuzzy similarity. Differences still require keep-existing approval. Missing/deleted mapped targets block reopening rather than resurrecting history. File ingestion, parsing and OCR remain Phase B work. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+
+Open course/session editors stay bound to their opening term. Save or cancel before switching terms; browser Back/Forward offers keep/discard choices. Term selections and course links retain term query context. Manual term creation disables cancellation while pending, rejects repeated submits and never redirects after unmount; leaving does not cancel an already running transaction. Introduction replay preserves completion and tour steps announce progress/focus. Import success state is consumed once.
+
+The tracked timetable fixture is synthetic and excluded from production modules. Earlier personal-looking fixture values remain in Git history; this correction does not rewrite history. No academic records, mappings or attachment identities are purged/rekeyed.
 
 ## Planned, not implemented
 

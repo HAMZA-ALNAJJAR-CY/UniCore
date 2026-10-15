@@ -38,22 +38,22 @@ describe("Extracted draft and review", () => {
     expect(draft.sessions.filter((row) => row.dayOfWeek === 2)).toHaveLength(7);
     expect(draft.sessions.filter((row) => row.dayOfWeek === 4)).toHaveLength(3);
     expect(
-      draft.courses.find((row) => row.code === "A0181105")?.instructor,
+      draft.courses.find((row) => row.code === "SYN104")?.instructor,
     ).toBeNull();
     expect(
-      draft.courses.find((row) => row.code === "A0161503")?.instructor,
+      draft.courses.find((row) => row.code === "SYN102")?.instructor,
     ).toBeNull();
-    expect(draft.courses.find((row) => row.code === "A0181505")).toMatchObject({
+    expect(draft.courses.find((row) => row.code === "SYN106")).toMatchObject({
       activityType: "practical",
       registeredHours: 1,
     });
-    expect(draft.courses.find((row) => row.code === "A0181504")?.key).not.toBe(
-      draft.courses.find((row) => row.code === "A0181505")?.key,
+    expect(draft.courses.find((row) => row.code === "SYN105")?.key).not.toBe(
+      draft.courses.find((row) => row.code === "SYN106")?.key,
     );
-    expect(draft.sessions.filter((row) => row.room === "B203")).toHaveLength(5);
+    expect(draft.sessions.filter((row) => row.room === "TEST-R1")).toHaveLength(5);
     expect(
       draft.sessions
-        .filter((row) => row.room === "B203")
+        .filter((row) => row.room === "TEST-R1")
         .every(
           (row) =>
             row.notes?.includes("*") && row.unconfirmed.includes("notes"),
@@ -67,8 +67,8 @@ describe("Extracted draft and review", () => {
     expect(draft.term).toMatchObject({
       startDate: null,
       endDate: null,
-      college: "تكنولوجيا المعلومات",
-      program: "الأمن السيبراني / البكالوريوس",
+      college: "كلية تجريبية",
+      program: "برنامج تجريبي",
     });
     expect(stats.transitions).toHaveLength(11);
   });
@@ -134,7 +134,7 @@ describe("Atomic confirmed import and re-import", () => {
     ).toHaveLength(1);
   });
   it("requires an explicit existing term identity when matching terms are ambiguous", async () => {
-    const term = { name: "Existing", academicYear: "2026/2027", semester: 1 };
+    const term = { name: "Existing", academicYear: "2038/2039", semester: 1 };
     const first = await store.academicTerms.create(term);
     await store.academicTerms.create({ ...term, name: "Another" });
     await expect(store.reviewTimetable(sourceDraft())).rejects.toMatchObject({
@@ -169,10 +169,10 @@ describe("Atomic confirmed import and re-import", () => {
       section: "03",
     });
     expect(
-      (await store.courses.list({ code: "A0181105" }))[0].instructor,
+      (await store.courses.list({ code: "SYN104" }))[0].instructor,
     ).toBeNull();
     expect(
-      (await store.courses.list({ code: "A0161503" }))[0].instructor,
+      (await store.courses.list({ code: "SYN102" }))[0].instructor,
     ).toBeNull();
     const mappings = await db.table<ImportMapping>("importMappings").toArray();
     expect(mappings).toHaveLength(23);
@@ -266,12 +266,12 @@ describe("Atomic confirmed import and re-import", () => {
   it("reuses unmapped existing course codes and matching session identities", async () => {
     const term = await store.academicTerms.create({
       name: "Existing term",
-      academicYear: "2026/2027",
+      academicYear: "2038/2039",
       semester: 1,
     });
     const course = await store.courses.create({
       academicTermId: term.id,
-      code: "A0181504",
+      code: "SYN105",
       name: "Existing programming",
       registeredHours: 2,
     });
@@ -284,7 +284,10 @@ describe("Atomic confirmed import and re-import", () => {
       room: "Existing",
       deliveryMode: "in-person",
     });
-    const review = await store.reviewTimetable(sourceDraft());
+    const incoming = sourceDraft();
+    incoming.courses.forEach(row => { if (row.code !== course.code) row.identity = "new"; });
+    incoming.sessions.forEach((row, index) => { if (index !== 0) row.identity = "new"; });
+    const review = await store.reviewTimetable(incoming);
     expect(review.draft.term.id).toBe(term.id);
     expect(
       review.draft.courses.find((row) => row.code === course.code)?.id,
@@ -306,6 +309,7 @@ describe("Atomic confirmed import and re-import", () => {
     draft.sessions = draft.sessions.filter((row) => row.courseKey !== removed);
     draft.courses.push({
       key: "added",
+      identity: "new",
       code: "USER101",
       name: "مقرر أضافه المستخدم",
       registeredHours: 1,
@@ -379,5 +383,76 @@ describe("Atomic confirmed import and re-import", () => {
       "legacy",
     );
     expect(await db.table("importMappings").count()).toBe(0);
+  });
+});
+
+describe("corrective source identity recovery", () => {
+  it("reopens mappings across connections and reviews edited session times without replacing history or Blobs", async () => {
+    const first = await store.reviewTimetable(sourceDraft());
+    await store.saveTimetable(first, confirm(first));
+    const original = first.draft.sessions[0];
+    const edited = await store.scheduleSessions.update(original.id!, { startTime: "07:30" }, 1);
+    const lecture = await store.lectures.create({ courseId: edited.courseId, scheduleSessionId: edited.id, date: "2038-10-10" });
+    const bytes = new Blob(["synthetic lecture bytes"]);
+    const file = await store.lectureFiles.create({ lectureId: lecture.id, fileName: "synthetic.txt", blob: bytes });
+    const material = await store.materials.create({ courseId: edited.courseId, title: "Synthetic material" });
+    const materialFile = await store.materialFiles.create({ materialId: material.id, fileName: "resource.txt", blob: bytes });
+    const mappings = await db.table("importMappings").toArray();
+    store.close();
+    db = new UniCoreDatabase(db.name);
+    store = new AcademicStore(db);
+    expect(await store.listImportSources()).toEqual([{ sourceId: first.draft.sourceId, termName: first.draft.term.name }]);
+    const resumed = await store.reopenImportSource(first.draft.sourceId);
+    expect(resumed.courses.map(row => row.id).sort()).toEqual(first.draft.courses.map(row => row.id).sort());
+    const row = resumed.sessions.find(row => row.id === original.id)!;
+    expect(row.key).toBe(original.key);
+    expect(row.startTime).toBe("07:30");
+    row.startTime = original.startTime;
+    const review = await store.reviewTimetable(resumed);
+    expect(review.differences.some(diff => diff.key === `scheduleSessions:${original.key}` && diff.fields.some(field => field.incoming === original.startTime && field.existing === "07:30"))).toBe(true);
+    expect((await store.saveTimetable(review, { confirmed: true, keepExistingKeys: [] })).committed).toBe(false);
+    expect((await store.saveTimetable(review, confirm(review))).created).toEqual([]);
+    expect(await store.scheduleSessions.get(edited.id)).toEqual(edited);
+    expect(await store.scheduleSessions.list()).toHaveLength(15);
+    expect(await db.table("importMappings").toArray()).toEqual(mappings);
+    expect(await (await store.lectureFiles.get(file.id))!.blob.text()).toBe(await bytes.text());
+    expect(await (await store.materialFiles.get(materialFile.id))!.blob.text()).toBe(await bytes.text());
+    expect(await store.lectures.get(lecture.id)).toEqual(lecture);
+  });
+
+  it("rejects lost row identity until an existing identity or separate new row is explicitly selected", async () => {
+    const first = await store.reviewTimetable(sourceDraft());
+    await store.saveTimetable(first, confirm(first));
+    const saved = first.draft.sessions[0];
+    await store.scheduleSessions.update(saved.id!, { startTime: "07:30" }, 1);
+    const incoming = sourceDraft();
+    incoming.sourceId = "explicit-different-source";
+    incoming.sessions[0].key = "unrecognized-key";
+    incoming.sessions[0].id = crypto.randomUUID(); // A minted UUID is not a user resolution.
+    await expect(store.reviewTimetable(incoming)).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await store.scheduleSessions.list()).toHaveLength(15);
+    incoming.sessions[0].id = saved.id;
+    const resolved = await store.reviewTimetable(incoming);
+    expect(resolved.differences.some(row => row.key === "scheduleSessions:unrecognized-key")).toBe(true);
+    incoming.sessions[0].id = undefined;
+    incoming.sessions[0].identity = "new";
+    const separate = await store.reviewTimetable(incoming);
+    expect(separate.draft.sessions[0].id).not.toBe(saved.id);
+    expect((await store.saveTimetable(separate, confirm(separate))).committed).toBe(true);
+    expect(await store.scheduleSessions.list()).toHaveLength(16);
+    expect(await store.scheduleSessions.get(separate.draft.sessions[0].id!)).not.toHaveProperty("identity");
+  });
+
+  it("keeps tombstoned and partial sources discoverable but refuses to reconstruct or resurrect them", async () => {
+    const first = await store.reviewTimetable(sourceDraft());
+    await store.saveTimetable(first, confirm(first));
+    const id = first.draft.sessions[0].id!;
+    await store.scheduleSessions.delete(id, { expectedRevision: 1 });
+    expect(await store.listImportSources()).toHaveLength(1);
+    await expect(store.reopenImportSource(first.draft.sourceId)).rejects.toMatchObject({ code: "CONFLICT" });
+    expect((await store.scheduleSessions.get(id, { includeDeleted: true }))?.deletedAt).not.toBeNull();
+    await db.table("importMappings").add({ key: "partial", sourceId: "partial", entity: "courses", sourceKey: "missing", recordId: crypto.randomUUID(), unconfirmed: [], createdAt: 1 });
+    expect(await store.listImportSources()).toHaveLength(2);
+    await expect(store.reopenImportSource("partial")).rejects.toMatchObject({ code: "CONFLICT" });
   });
 });

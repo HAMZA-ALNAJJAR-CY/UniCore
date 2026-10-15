@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { introductionText } from "../i18n/introduction";
 import { PageHeader } from "../components/PageHeader";
 import {
@@ -83,7 +83,7 @@ export function SessionItem({
 }) {
   return (
     <li className="managed-session">
-      <Link to={"/courses#course-" + session.courseId}>
+      <Link to={"/courses?term=" + session.academicTermId + "#course-" + session.courseId}>
         <strong>{name}</strong>
         {code && <bdi dir="ltr">{code}</bdi>}
         <p>
@@ -104,6 +104,14 @@ export function SessionItem({
 export function Dashboard({ store }: { store?: TimetableStore }) {
   useLanguage();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [showSaved] = useState(() => Boolean(location.state?.timetableSaved));
+  useEffect(() => {
+    if (!location.state?.timetableSaved) return;
+    const { timetableSaved, ...remaining } = location.state;
+    void timetableSaved;
+    navigate(location.pathname + location.search + location.hash, { replace: true, state: remaining });
+  }, [location, navigate]);
   const state = useTimetable(store, location.state?.termId),
     now = useClock();
   const data = state.data,
@@ -116,7 +124,7 @@ export function Dashboard({ store }: { store?: TimetableStore }) {
   return (
     <div className="timetable-review daily-page">
       <PageHeader title={d.welcome} description={d.overview} />
-      {location.state?.timetableSaved && (
+      {showSaved && (
         <p role="status" className="management-success">
           {introductionText.saved}
         </p>
@@ -211,7 +219,7 @@ export function Dashboard({ store }: { store?: TimetableStore }) {
                 </div>
               ))}
             </div>
-            <Link className="button-link" to="/calendar">
+            <Link className="button-link" to={"/calendar?term=" + data?.termId}>
               {d.calendar}
             </Link>
           </section>

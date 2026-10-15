@@ -186,11 +186,11 @@ describe("Arabic timetable review interface", () => {
     const mocked = await mount();
     mocked.reviewTimetable.mockImplementation(async (draft) => ({
       draft,
-      existingKeys: ["courses:A0161404"],
+      existingKeys: ["courses:SYN101"],
       differences: [
         {
-          key: "courses:A0161404",
-          label: "فن الاتيكيت",
+          key: "courses:SYN101",
+          label: "مقرر تجريبي ألف",
           fields: [
             { field: "الاسم", incoming: "المسودة", existing: "تعديل المستخدم" },
           ],

@@ -1,4 +1,5 @@
 import { tr } from "../i18n/locale";
+import { introductionText as t } from "../i18n/introduction";
 import { analyzeDraft, FIELD_LABELS, DAYS } from "../features/timetable/draft";
 import { UniCoreDatabase } from "./database";
 import { DataError } from "./errors";
@@ -69,6 +70,8 @@ export async function buildTimetableReview(
     requestedId: string | undefined,
     candidates: Entities[K][],
     unconfirmed: string[],
+    identity?: "new",
+    hasHistory = false,
   ) {
     const binding = bindings.find(
       (row) => row.key === keyFor(draft.sourceId, kind, key),
@@ -87,6 +90,7 @@ export async function buildTimetableReview(
       if (explicit) id = explicit.id;
       else if (candidates.length > 1) fail(tr("text_215"));
       else if (candidates.length === 1) id = candidates[0].id;
+      else if (hasHistory && identity !== "new") fail(t.resolveIdentity);
     }
     id = id ? canonicalUuid(id) : crypto.randomUUID();
     const existing = await db.records(kind).get(id);
@@ -161,9 +165,10 @@ export async function buildTimetableReview(
     draft.term.unconfirmed,
   );
   draft.term.id = termMatch.id;
-  const { key: termKey, unconfirmed: termUnknown, ...termInput } = draft.term;
+  const { key: termKey, unconfirmed: termUnknown, identity: termIdentity, ...termInput } = draft.term;
   void termKey;
   void termUnknown;
+  void termIdentity;
   compare(
     "academicTerms",
     draft.term.key,
@@ -193,6 +198,8 @@ export async function buildTimetableReview(
       course.id,
       storedCourses.filter((row) => row.code === code),
       course.unconfirmed,
+      course.identity,
+      storedCourses.length > 0,
     );
     if (match.existing && match.existing.academicTermId !== termMatch.id)
       fail(tr("text_218"));
@@ -201,9 +208,10 @@ export async function buildTimetableReview(
     course.id = match.id;
     if (!courseLabels.has(match.id))
       courseLabels.set(match.id, `${course.name} (${code})`);
-    const { key, unconfirmed, ...data } = course;
+    const { key, unconfirmed, identity, ...data } = course;
     void key;
     void unconfirmed;
+    void identity;
     const input = { ...data, id: match.id, academicTermId: termMatch.id, code };
     compare("courses", course.key, course.name, input, match.existing);
     batch.courses!.push(
@@ -230,16 +238,19 @@ export async function buildTimetableReview(
           row.endTime === session.endTime,
       ),
       session.unconfirmed,
+      session.identity,
+      storedSessions.some(row => row.courseId === course.id),
     );
     if (match.existing && match.existing.academicTermId !== termMatch.id)
       fail(tr("text_220"));
     if (selectedSessionIds.has(match.id)) fail(tr("text_221"));
     selectedSessionIds.add(match.id);
     session.id = match.id;
-    const { key, unconfirmed, courseKey, ...data } = session;
+    const { key, unconfirmed, courseKey, identity, ...data } = session;
     void key;
     void unconfirmed;
     void courseKey;
+    void identity;
     const input = {
       ...data,
       id: match.id,

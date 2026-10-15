@@ -13,6 +13,7 @@ import type {
 } from "./models";
 import { assertInput, invalid, validate } from "./validation";
 import { buildTimetableReview } from "./timetable-review";
+import { listSources, reopenSource } from "./import-sources";
 import { fileProblem } from "../features/lectures/files";
 import { overlappingSessions } from "../features/timetable/schedule";
 import type {
@@ -315,6 +316,16 @@ export class AcademicStore {
       "r",
       async () => (await buildTimetableReview(this.database, draft)).review,
     );
+  }
+
+  /** Discover retained mappings, including sources that require manual repair. */
+  listImportSources() {
+    return this.run("r", () => listSources(this.database));
+  }
+
+  /** Resume current saved values with original source/row IDs. Missing/deleted targets fail closed. */
+  reopenImportSource(sourceId: string): Promise<TimetableDraft> {
+    return this.run("r", () => reopenSource(this.database, sourceId));
   }
 
   async saveTimetable(

@@ -3,7 +3,13 @@ import type { AcademicTerm, Course, ScheduleSession } from "./models";
 type DraftRow<T> = Omit<
   T,
   "createdAt" | "updatedAt" | "deletedAt" | "revision" | "id"
-> & { key: string; id?: string; unconfirmed: string[] };
+> & {
+  key: string;
+  id?: string;
+  unconfirmed: string[];
+  /** Explicit permission to insert an unmatched row alongside existing history. */
+  identity?: "new";
+};
 export type DraftTerm = DraftRow<AcademicTerm>;
 export type DraftCourse = Omit<DraftRow<Course>, "academicTermId">;
 export type DraftSession = Omit<
@@ -24,6 +30,10 @@ export interface ImportMapping {
   recordId: string;
   unconfirmed: string[];
   createdAt: number;
+}
+export interface SavedImportSource {
+  sourceId: string;
+  termName: string | null;
 }
 export interface ImportDifference {
   key: string;

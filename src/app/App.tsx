@@ -22,13 +22,15 @@ import { Calendar } from "../pages/Calendar";
 import { useLanguage, setLanguage } from "../i18n/locale";
 
 function Navigation({ mobile = false }: { mobile?: boolean }) {
+  const location = useLocation();
+  const termId = new URLSearchParams(location.search).get("term") ?? location.state?.termId;
   return (
     <nav
       className={mobile ? "mobile-nav" : "desktop-nav"}
       aria-label={mobile ? tr("text_0") : tr("text_1")}
     >
       {navigation.map(({ path, label, icon: Icon }) => (
-        <NavLink key={path} to={path} end={path === "/"}>
+        <NavLink key={path} to={termId && ["/", "/courses", "/calendar"].includes(path) ? `${path}?term=${encodeURIComponent(termId)}` : path} end={path === "/"}>
           <Icon size={20} aria-hidden="true" />
           <span>{label}</span>
         </NavLink>

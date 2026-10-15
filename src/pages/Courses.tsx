@@ -2,6 +2,7 @@ import { translateMessage } from "../i18n/locale";
 import { useEffect, useId, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { introductionText } from "../i18n/introduction";
+import { EditorNavigationGuard } from "../components/EditorNavigationGuard";
 import {
   createAcademicStore,
   DataError,
@@ -332,7 +333,7 @@ type Removal =
   | { kind: "session"; record: ScheduleSession; graph: DeletionEntry[] };
 
 export function Courses({ store = defaultStore }: { store?: Store }) {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const requestedTerm = params.get("term") ?? undefined;
   const [data, setData] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState(true);
@@ -340,16 +341,53 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   const [notice, setNotice] = useState("");
   const [view, setView] = useState<"courses" | "week">("courses");
   const [editor, setEditor] = useState<Editor | null>(null);
+  const [editorTermId, setEditorTermId] = useState<string | undefined>();
   const [removal, setRemoval] = useState<Removal | null>(null);
+  const protectedTermId = editor ? editorTermId : removal?.record.academicTermId;
+  const loadedContext = useRef<{ store: Store; termId: string | undefined } | null>(null);
   useEffect(() => {
+    if (!protectedTermId) return;
+    const guard = (event: MouseEvent) => {
+      const anchor = (event.target as Element).closest?.<HTMLAnchorElement>("a[href]");
+      if (!anchor) return;
+      const target = new URL(anchor.href, window.location.href);
+      if (target.origin !== window.location.origin || target.pathname !== window.location.pathname || target.search !== window.location.search) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    document.addEventListener("click", guard, true);
+    window.addEventListener("beforeunload", unload);
+    return () => {
+      document.removeEventListener("click", guard, true);
+      window.removeEventListener("beforeunload", unload);
+    };
+  }, [protectedTermId]);
+  useEffect(() => {
+    if (protectedTermId && requestedTerm !== protectedTermId) {
+      setParams(current => { current.set("term", protectedTermId); return current; }, { replace: true });
+      return;
+    }
+    if (loadedContext.current?.store === store && loadedContext.current.termId === requestedTerm) return;
     let active = true;
     store
       .getTimetable(requestedTerm)
       .then((snapshot) => {
-        if (active) setData(snapshot);
+        if (active) {
+          setError("");
+          loadedContext.current = { store, termId: snapshot.termId };
+          setData(snapshot);
+          if (!requestedTerm && snapshot.termId)
+            setParams(current => { current.set("term", snapshot.termId!); return current; }, { replace: true });
+        }
       })
       .catch((failure) => {
-        if (active) setError(errorText(failure));
+        if (active) {
+          loadedContext.current = null;
+          setData(null);
+          setError(errorText(failure));
+        }
       })
       .finally(() => {
         if (active) setBusy(false);
@@ -357,14 +395,17 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     return () => {
       active = false;
     };
-  }, [store, requestedTerm]);
+  }, [store, requestedTerm, protectedTermId, setParams]);
 
   async function load(termId = data?.termId) {
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      setData(await store.getTimetable(termId));
+      const snapshot = await store.getTimetable(termId);
+      setData(snapshot);
+      loadedContext.current = { store, termId: snapshot.termId };
+      if (snapshot.termId) setParams(current => { current.set("term", snapshot.termId!); return current; }, { replace: true });
     } catch (failure) {
       setError(errorText(failure));
     } finally {
@@ -372,6 +413,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     }
   }
   function begin(next: Editor) {
+    setEditorTermId(data?.termId);
     setEditor(next);
     setRemoval(null);
     setNotice("");
@@ -437,7 +479,8 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
       setBusy(false);
     }
   }
-  const locked = busy || !!editor || !!removal;
+  const transitioning = !protectedTermId && data !== null && requestedTerm !== undefined && requestedTerm !== data.termId;
+  const locked = busy || transitioning || !!editor || !!removal;
   const courses = data?.courses ?? [];
   const sessions = ordered(data?.sessions ?? []);
   const conflicts = sessions.flatMap((row, index) =>
@@ -495,6 +538,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   }
   return (
     <div className="timetable-review timetable-management">
+      <EditorNavigationGuard enabled={!!protectedTermId} onDiscard={cancel} />
       <PageHeader title={t.title} description={t.description} />
       <div className="management-toolbar">
         <Link className="button-link" to="/courses/import">
@@ -508,7 +552,8 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
         </button>
       </div>
       <p className="review-note">{t.refreshHint}</p>
-      {busy && <p role="status">{t.loading}</p>}
+      {(busy || transitioning) && <p role="status">{t.loading}</p>}
+      {protectedTermId && <p role="status">{introductionText.finishEditing}</p>}
       {notice && (
         <p role="status" className="management-success">
           {translateMessage(notice)}
@@ -541,7 +586,10 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
               <select
                 value={data.termId}
                 disabled={locked}
-                onChange={(event) => void load(event.target.value)}
+                onChange={(event) => {
+                  if (locked) return;
+                  setParams(current => { current.set("term", event.target.value); return current; });
+                }}
               >
                 {data.terms.map((term) => (
                   <option key={term.id} value={term.id}>
@@ -578,8 +626,8 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
             <CourseEditor
               key={editor.course?.id ?? "new-course"}
               course={editor.course}
-              termId={data.termId!}
-              busy={busy}
+              termId={editorTermId!}
+              busy={busy || transitioning}
               onCancel={cancel}
               onSave={(input) =>
                 void write(() =>
@@ -601,7 +649,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
               course={editor.course}
               sessions={sessions}
               courses={courses}
-              busy={busy}
+              busy={busy || transitioning}
               onCancel={cancel}
               onSave={(input, overlaps) =>
                 void write(

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { createAcademicStore } from "../data";
 import { Dashboard } from "./Dashboard";
 import { PageHeader } from "../components/PageHeader";
@@ -8,7 +8,6 @@ import { useLanguage, setLanguage } from "../i18n/locale";
 import {
   finishIntroduction,
   introductionComplete,
-  resetIntroduction,
 } from "../features/onboarding";
 const store = createAcademicStore();
 type PresenceStore = Pick<
@@ -18,6 +17,8 @@ type PresenceStore = Pick<
 export function Introduction({ onDone }: { onDone: (path: string) => void }) {
   useLanguage();
   const [step, setStep] = useState(-1);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (step >= 0) heading.current?.focus(); }, [step]);
   const stops = [
     [t.dashboard, t.dashboardInfo],
     [t.courses, t.coursesInfo],
@@ -38,8 +39,8 @@ export function Introduction({ onDone }: { onDone: (path: string) => void }) {
         </div>
       ) : step < 4 ? (
         <section className="review-card" aria-label={t.progress}>
-          <p>{step + 1} / 4</p>
-          <h2>{stops[step][0]}</h2>
+          <p role="status" aria-live="polite" aria-atomic="true">{t.progressStep} {step + 1} / 4: {stops[step][0]}</p>
+          <h2 ref={heading} tabIndex={-1}>{stops[step][0]}</h2>
           <p>{stops[step][1]}</p>
           <div className="management-actions">
             <button onClick={() => setStep(step + 1)}>{t.next}</button>
@@ -48,6 +49,7 @@ export function Introduction({ onDone }: { onDone: (path: string) => void }) {
         </section>
       ) : (
         <section className="review-card management-actions">
+          <h2 ref={heading} tabIndex={-1}>{t.choices}</h2>
           <button onClick={() => onDone("/courses/import")}>{t.import}</button>
           <button onClick={() => onDone("/courses/setup")}>{t.manual}</button>
           <button onClick={() => onDone("/")}>{t.later}</button>
@@ -117,6 +119,11 @@ export function ManualSetup({
 }) {
   useLanguage();
   const navigate = useNavigate();
+  const mounted = useRef(false), submitting = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const [name, setName] = useState(""),
     [year, setYear] = useState(""),
     [semester, setSemester] = useState("1"),
@@ -129,7 +136,8 @@ export function ManualSetup({
         className="review-card"
         onSubmit={async (event) => {
           event.preventDefault();
-          if (busy) return;
+          if (submitting.current) return;
+          submitting.current = true;
           setBusy(true);
           setError(false);
           try {
@@ -138,15 +146,19 @@ export function ManualSetup({
               academicYear: year,
               semester: Number(semester),
             });
-            finishIntroduction();
-            navigate("/courses?term=" + term.id, { replace: true });
+            if (mounted.current) {
+              finishIntroduction();
+              navigate("/courses?term=" + term.id, { replace: true });
+            }
           } catch {
-            setError(true);
+            if (mounted.current) setError(true);
           } finally {
-            setBusy(false);
+            submitting.current = false;
+            if (mounted.current) setBusy(false);
           }
         }}
       >
+        {busy && <p role="status">{t.savingTerm}</p>}
         <fieldset disabled={busy}>
           <div className="review-fields">
             <label className="review-field">
@@ -181,7 +193,7 @@ export function ManualSetup({
           {error && <p role="alert">{t.saveError}</p>}
           <div className="management-actions">
             <button type="submit">{t.create}</button>
-            <Link to="/">{t.cancel}</Link>
+            <button type="button" disabled={busy} onClick={() => { if (!submitting.current) navigate("/"); }}>{t.cancel}</button>
           </div>
         </fieldset>
       </form>
@@ -210,7 +222,6 @@ export function Settings() {
         <div className="management-actions">
           <button
             onClick={() => {
-              resetIntroduction();
               navigate("/?intro=1");
             }}
           >

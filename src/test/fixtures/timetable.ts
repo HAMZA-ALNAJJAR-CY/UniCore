@@ -1,64 +1,64 @@
-// Test-only historical source fixture. Never import this module into production.
+// Fully synthetic test fixture. Never import this module into production.
 import type { TimetableDraft } from "../../data/timetable-types";
-const SOURCE_ID = "IMG_20261015_001157:2026-2027:semester-1";
-/** Development-time extraction only. Constructing this object writes nothing. */
+const SOURCE_ID = "synthetic-timetable-fixture-v1";
+/** Synthetic scenario only. Constructing this object writes nothing. */
 export function sourceDraft(): TimetableDraft {
   const courses = [
-    ["A0161404", "فن الاتيكيت", "وسام حسين علي الزعبي", "2", "theory", 1],
-    ["A0161503", "الفكر الناقد", null, "1", "theory", 2],
-    ["A0181101", "تفاضل وتكامل (1)", "غدير عيسى خليل فراج", "2", "theory", 3],
-    ["A0181105", "رياضيات متقطعة", null, "2", "theory", 3],
+    ["SYN101", "مقرر تجريبي ألف", "مدرس تجريبي ألف", "2", "theory", 1],
+    ["SYN102", "مقرر تجريبي باء", null, "1", "theory", 2],
+    ["SYN103", "مقرر تجريبي جيم", "مدرس تجريبي جيم", "2", "theory", 3],
+    ["SYN104", "مقرر تجريبي دال", null, "2", "theory", 3],
     [
-      "A0181504",
-      "اساسيات البرمجة",
-      "بشير خالد عبد الرحمن شحادة",
+      "SYN105",
+      "برمجة تجريبية",
+      "مدرس تجريبي دال",
       "1",
       "theory",
       2,
     ],
     [
-      "A0181505",
-      "مختبر اساسيات البرمجة",
-      "بشير خالد عبد الرحمن شحادة",
+      "SYN106",
+      "مختبر تجريبي",
+      "مدرس تجريبي دال",
       "2",
       "practical",
       1,
     ],
     [
-      "A0412102",
-      "تصميم وتحليل الخوارزميات",
-      "ساره عماد خالد شكري",
+      "SYN107",
+      "مقرر تجريبي هاء",
+      "مدرس تجريبي هاء",
       "1",
       "theory",
       3,
     ],
   ] as const;
   const sessions = [
-    ["A0181504", 7, "08:00", "09:00", "B203"],
-    ["A0181101", 7, "09:00", "10:00", "B203"],
-    ["A0412102", 7, "10:00", "11:00", "M1108"],
-    ["A0181105", 7, "11:00", "12:00", "H010"],
-    ["A0161503", 7, "15:00", "16:00", "Online"],
-    ["A0181504", 2, "08:00", "09:00", "B203"],
-    ["A0181101", 2, "09:00", "10:00", "B203"],
-    ["A0412102", 2, "10:00", "11:00", "M1108"],
-    ["A0181105", 2, "11:00", "12:00", "H010"],
-    ["A0181505", 2, "12:00", "14:00", "NB09"],
-    ["A0161404", 2, "14:00", "15:00", "Online"],
-    ["A0161503", 2, "15:00", "16:00", "Online"],
-    ["A0181101", 4, "09:00", "10:00", "B203"],
-    ["A0412102", 4, "10:00", "11:00", "M1108"],
-    ["A0181105", 4, "11:00", "12:00", "H010"],
+    ["SYN105", 7, "08:00", "09:00", "TEST-R1"],
+    ["SYN103", 7, "09:00", "10:00", "TEST-R1"],
+    ["SYN107", 7, "10:00", "11:00", "TEST-R3"],
+    ["SYN104", 7, "11:00", "12:00", "TEST-R2"],
+    ["SYN102", 7, "15:00", "16:00", "Online"],
+    ["SYN105", 2, "08:00", "09:00", "TEST-R1"],
+    ["SYN103", 2, "09:00", "10:00", "TEST-R1"],
+    ["SYN107", 2, "10:00", "11:00", "TEST-R3"],
+    ["SYN104", 2, "11:00", "12:00", "TEST-R2"],
+    ["SYN106", 2, "12:00", "14:00", "TEST-LAB"],
+    ["SYN101", 2, "14:00", "15:00", "Online"],
+    ["SYN102", 2, "15:00", "16:00", "Online"],
+    ["SYN103", 4, "09:00", "10:00", "TEST-R1"],
+    ["SYN107", 4, "10:00", "11:00", "TEST-R3"],
+    ["SYN104", 4, "11:00", "12:00", "TEST-R2"],
   ] as const;
   return {
     sourceId: SOURCE_ID,
     term: {
       key: "term",
-      name: "الفصل الدراسي الأول 2026/2027",
-      academicYear: "2026/2027",
+      name: "الفصل الدراسي الأول 2038/2039",
+      academicYear: "2038/2039",
       semester: 1,
-      college: "تكنولوجيا المعلومات",
-      program: "الأمن السيبراني / البكالوريوس",
+      college: "كلية تجريبية",
+      program: "برنامج تجريبي",
       startDate: null,
       endDate: null,
       unconfirmed: [],
@@ -85,10 +85,10 @@ export function sourceDraft(): TimetableDraft {
         room,
         deliveryMode: room === "Online" ? "online" : "in-person",
         notes:
-          room === "B203"
-            ? "تظهر علامة * بجوار B203 في المصدر؛ معناها غير مؤكد."
+          room === "TEST-R1"
+            ? "تظهر علامة * بجوار TEST-R1 في المصدر؛ معناها غير مؤكد."
             : null,
-        unconfirmed: room === "B203" ? ["notes"] : [],
+        unconfirmed: room === "TEST-R1" ? ["notes"] : [],
       }),
     ),
   };

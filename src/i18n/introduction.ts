@@ -45,6 +45,23 @@ const ar = {
   localOnly: "محلي فقط",
   language: "اللغة",
   progress: "الجولة التعريفية",
+  progressStep: "خطوة",
+  keepEditing: "متابعة التعديل",
+  discardAndLeave: "تجاهل المسودة والمغادرة",
+  finishEditing: "احفظ التعديل أو ألغِه قبل تغيير الفصل أو مغادرة الصفحة.",
+  savingTerm: "جارٍ حفظ الفصل. الإلغاء غير متاح الآن. إذا غادرت الصفحة قد يكتمل الحفظ دون إعادتك إليها.",
+  source: "مصدر جدول محفوظ",
+  chooseSource: "اختر مصدراً محفوظاً للمتابعة، أو ابدأ جدولاً جديداً بشكل صريح.",
+  selectSource: "اختر مصدراً",
+  openSource: "فتح المصدر المحفوظ",
+  newSource: "بدء مصدر جدول جديد",
+  resumedSource: "تعرض المسودة القيم المحفوظة الحالية بهويات المصدر والصفوف الأصلية. عدّل القيم الواردة للمقارنة؛ لن تُستبدل تعديلاتك المحفوظة.",
+  brokenSource: "المصدر المحفوظ غير مكتمل أو يشير إلى سجل مفقود أو محذوف. راجع الربط صراحةً؛ لم تتغير البيانات.",
+  resolveIdentity: "تعذر تحديد هوية الصف بأمان. اختر السجل المحفوظ الصحيح أو أكد أن الصف جديد. لا تُنشئ مصدراً جديداً لإعادة محاولة مصدر موجود.",
+  identity: "هوية الصف",
+  autoIdentity: "استخدام الربط أو التطابق التام",
+  newIdentity: "أؤكد أن هذا صف جديد مستقل",
+  existingIdentity: "سجل محفوظ",
 };
 const en: typeof ar = {
   welcome: "Welcome to UniCore",
@@ -96,7 +113,30 @@ const en: typeof ar = {
   localOnly: "Local Only",
   language: "Language",
   progress: "Introduction tour",
+  progressStep: "Step",
+  keepEditing: "Keep editing",
+  discardAndLeave: "Discard draft and leave",
+  finishEditing: "Save or cancel the open editor before changing terms or leaving this page.",
+  savingTerm: "Saving the term. Cancellation is unavailable. If you leave, the save may finish without navigating you back.",
+  source: "Saved timetable source",
+  chooseSource: "Choose a saved source to resume, or explicitly start a new timetable source.",
+  selectSource: "Choose a source",
+  openSource: "Open saved source",
+  newSource: "Start a new timetable source",
+  resumedSource: "This draft shows current saved values with the original source and row identities. Edit incoming values to compare; saved user edits are never replaced.",
+  brokenSource: "The saved source is incomplete or references missing or deleted records. Review its mappings explicitly; no data was changed.",
+  resolveIdentity: "Row identity could not be determined safely. Select the correct saved record or explicitly confirm a new row. Do not start a new source to retry an existing one.",
+  identity: "Row identity",
+  autoIdentity: "Use mapping or exact match",
+  newIdentity: "I confirm this is a separate new row",
+  existingIdentity: "Saved record",
 };
 export const introductionText = dynamic(() =>
   getLanguage() === "ar" ? ar : en,
 );
+
+/** Re-render persisted UI feedback in the current language; never translate academic values. */
+export function translateIntroductionMessage(message: string) {
+  const key = (Object.keys(ar) as (keyof typeof ar)[]).find(key => ar[key] === message || en[key] === message);
+  return key ? introductionText[key] : message;
+}

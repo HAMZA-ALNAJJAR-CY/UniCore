@@ -1,8 +1,8 @@
 import { tr, dynamic, useLanguage, translateMessage } from "../i18n/locale";
 import { useEffect, useId, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { timetableText } from "../features/timetable/messages";
-import { introductionText } from "../i18n/introduction";
+import { introductionText, translateIntroductionMessage } from "../i18n/introduction";
 import { CheckCircle2, FileCheck2, Plus, Trash2 } from "lucide-react";
 import {
   createAcademicStore,
@@ -10,6 +10,7 @@ import {
   type AcademicTerm,
   type TimetableDraft,
   type TimetableReview,
+  type SavedImportSource,
 } from "../data";
 import {
   analyzeDraft,
@@ -29,6 +30,7 @@ const STEPS = dynamic(() => [
 const nullable = (value: string) => (value.trim() ? value : null);
 function message(error: unknown) {
   if (error instanceof DataError) {
+    if (error.message === introductionText.resolveIdentity || error.message === introductionText.brokenSource) return error.message;
     if (error.code === "IDENTITY_COLLISION") return tr("text_36");
     if (error.code === "QUOTA") return tr("text_37");
     if (error.code === "CONFLICT" || error.code === "VALIDATION")
@@ -179,13 +181,87 @@ function WeeklySummary({ draft }: { draft: TimetableDraft }) {
   );
 }
 
-export function TimetableImport({
-  store = defaultStore,
-  initialDraft,
-}: {
+type ImportProps = {
   store?: ReturnType<typeof createAcademicStore>;
   initialDraft?: TimetableDraft;
+};
+
+export function TimetableImport(props: ImportProps) {
+  return props.initialDraft ? <TimetableReviewForm {...props} /> : <ImportSourceChooser store={props.store ?? defaultStore} />;
+}
+
+function ImportSourceChooser({ store }: { store: ReturnType<typeof createAcademicStore> }) {
+  useLanguage();
+  const [params, setParams] = useSearchParams();
+  const requestedSource = params.get("source");
+  const [sources, setSources] = useState<SavedImportSource[] | null>(null);
+  const [draft, setDraft] = useState<TimetableDraft | null>(null);
+  const [selected, setSelected] = useState(requestedSource ?? "");
+  const [error, setError] = useState(false), [busy, setBusy] = useState(false), [request, setRequest] = useState(0);
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      setBusy(true);
+      setDraft(null);
+      try {
+        const available = await store.listImportSources();
+        if (!active) return;
+        setSources(available);
+        if (requestedSource) {
+          const reopened = await store.reopenImportSource(requestedSource);
+          if (active) setDraft(reopened);
+        } else if (!available.length) setDraft(emptyDraft());
+      } catch { if (active) setError(true); }
+      finally { if (active) setBusy(false); }
+    }
+    void load();
+    return () => { active = false; };
+  }, [store, requestedSource, request]);
+  if (draft) return <TimetableReviewForm key={draft.sourceId} store={store} initialDraft={draft} />;
+  return <div className="timetable-review">
+    <h1>{tr("text_2")}</h1>
+    {sources === null && !error && <p role="status">{timetableText.loading}</p>}
+    {error && <p role="alert">{introductionText.brokenSource}</p>}
+    {sources && <section className="review-card">
+      <p>{introductionText.chooseSource}</p>
+      <label className="review-field">{introductionText.source}
+        <select value={selected} onChange={event => setSelected(event.target.value)} disabled={busy}>
+          <option value="">{introductionText.selectSource}</option>
+          {sources.map((source, index) => <option key={source.sourceId} value={source.sourceId}>{source.termName ?? introductionText.brokenSource} — {index + 1}</option>)}
+        </select>
+      </label>
+      <div className="management-actions">
+        <button disabled={!selected || busy} onClick={() => {
+          setError(false);
+          setParams({ source: selected });
+          setRequest(value => value + 1);
+        }}>{introductionText.openSource}</button>
+        <button disabled={busy} onClick={() => { setBusy(true); setDraft(emptyDraft()); }}>{introductionText.newSource}</button>
+      </div>
+    </section>}
+    {error && <button onClick={() => { setError(false); setRequest(value => value + 1); }}>{introductionText.retry}</button>}
+  </div>;
+}
+
+function IdentityField({ row, options, onChange }: {
+  row: { id?: string; identity?: "new" };
+  options: { id: string; label: string }[];
+  onChange: (patch: { id?: string; identity?: "new" }) => void;
 }) {
+  return <label className="review-field">{introductionText.identity}
+    <select value={row.identity === "new" ? "new" : options.some(option => option.id === row.id) ? row.id : ""}
+      onChange={event => onChange(event.target.value === "new" ? { id: crypto.randomUUID(), identity: "new" } : { id: event.target.value || undefined, identity: undefined })}>
+      <option value="">{introductionText.autoIdentity}</option>
+      <option value="new">{introductionText.newIdentity}</option>
+      {options.map(option => <option value={option.id} key={option.id}>{introductionText.existingIdentity}: {option.label}</option>)}
+    </select>
+  </label>;
+}
+
+function TimetableReviewForm({
+  store = defaultStore,
+  initialDraft,
+}: ImportProps) {
   useLanguage();
   const navigate = useNavigate();
   const [draft, setDraft] = useState(() => initialDraft ?? emptyDraft());
@@ -200,8 +276,13 @@ export function TimetableImport({
   const [keep, setKeep] = useState<string[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [success, setSuccess] = useState("");
+  const [identityOptions, setIdentityOptions] = useState<Awaited<ReturnType<typeof store.getTimetable>> | null>(null);
   const stepHeading = useRef<HTMLHeadingElement>(null);
   const stats = analyzeDraft(draft);
+  function savedCourseId(key: string) {
+    const course = draft.courses.find(row => row.key === key);
+    return course?.id ?? identityOptions?.courses.find(row => row.code === course?.code.trim().toUpperCase())?.id;
+  }
   useEffect(() => {
     let active = true;
     async function load() {
@@ -229,6 +310,13 @@ export function TimetableImport({
       active = false;
     };
   }, [store]);
+  useEffect(() => {
+    let active = true;
+    if (draft.term.id) store.getTimetable(draft.term.id).then(value => {
+      if (active) setIdentityOptions(value);
+    }).catch(() => { if (active) { setIdentityOptions(null); setError(introductionText.resolveIdentity); } });
+    return () => { active = false; };
+  }, [store, draft.term.id]);
   useEffect(() => {
     stepHeading.current?.focus();
   }, [step]);
@@ -330,6 +418,7 @@ export function TimetableImport({
         <h1>{tr("text_2")}</h1>
         <p>{tr("text_59")}</p>
         <p className="review-note">{introductionText.unsupported}</p>
+        {initialDraft?.term.id && <p className="review-note">{introductionText.resumedSource}</p>}
       </header>
       <ol className="review-steps" aria-label={tr("text_60")}>
         {STEPS.map((label, index) => (
@@ -341,7 +430,7 @@ export function TimetableImport({
       </ol>
       {error && (
         <div className="review-alert" role="alert">
-          {translateMessage(error)}
+          {translateIntroductionMessage(translateMessage(error))}
         </div>
       )}
       {!ready && <p role="status">{tr("text_61")}</p>}
@@ -503,6 +592,7 @@ export function TimetableImport({
                       <span className="badge">{index + 1}</span>
                     </div>
                     <div className="review-fields">
+                      <IdentityField row={course} options={(identityOptions?.courses ?? []).map(row => ({ id: row.id, label: `${row.name} (${row.code})` }))} onChange={patch => courseEdit(course.key, patch)} />
                       <TextField
                         label={tr("text_77")}
                         value={course.name}
@@ -604,6 +694,7 @@ export function TimetableImport({
                         {
                           key: `added-${id}`,
                           id,
+                          identity: "new",
                           code: "",
                           name: "",
                           instructor: null,
@@ -643,6 +734,7 @@ export function TimetableImport({
                       </span>
                     </div>
                     <div className="review-fields">
+                      <IdentityField row={session} options={(identityOptions?.sessions ?? []).filter(row => row.courseId === savedCourseId(session.courseKey)).map(row => ({ id: row.id, label: `${DAYS[row.dayOfWeek]} ${row.startTime}–${row.endTime}` }))} onChange={patch => sessionEdit(session.key, patch)} />
                       <label className="review-field">
                         {tr("text_91")}
                         <select
@@ -759,6 +851,7 @@ export function TimetableImport({
                           id,
                           key: `added-${id}`,
                           courseKey: current.courses[0]?.key ?? "",
+                          identity: "new",
                           dayOfWeek: 7,
                           startTime: "",
                           endTime: "",
@@ -840,7 +933,7 @@ export function TimetableImport({
                             <div className="difference-list">
                               {difference.fields.map((field) => (
                                 <p key={translateMessage(field.field)}>
-                                  <strong>{field.field}</strong>
+                                  <strong>{translateMessage(field.field)}</strong>
                                   {tr("text_114")}{" "}
                                   <bdi>{translateMessage(field.incoming)}</bdi>
                                   {tr("text_115")}{" "}
