@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { introductionText } from "../i18n/introduction";
 import { PageHeader } from "../components/PageHeader";
 import {
   useTimetable,
@@ -61,6 +62,9 @@ export function AcademicDataControls({
           <Link className="button-link" to="/courses/import">
             {t.import}
           </Link>
+          <Link className="button-link" to="/courses/setup">
+            {introductionText.manual}
+          </Link>
         </section>
       )}
     </>
@@ -99,7 +103,8 @@ export function SessionItem({
 }
 export function Dashboard({ store }: { store?: TimetableStore }) {
   useLanguage();
-  const state = useTimetable(store),
+  const location = useLocation();
+  const state = useTimetable(store, location.state?.termId),
     now = useClock();
   const data = state.data,
     term = data?.terms.find((row) => row.id === data.termId);
@@ -111,6 +116,11 @@ export function Dashboard({ store }: { store?: TimetableStore }) {
   return (
     <div className="timetable-review daily-page">
       <PageHeader title={d.welcome} description={d.overview} />
+      {location.state?.timetableSaved && (
+        <p role="status" className="management-success">
+          {introductionText.saved}
+        </p>
+      )}
       <p>{dateLabel(now)}</p>
       <AcademicDataControls state={state} />
       {term && (

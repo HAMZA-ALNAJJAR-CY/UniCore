@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UniCoreDatabase } from "../data/database";
 import { AcademicStore } from "../data/store";
 import type { CreateInput, Course, ScheduleSession } from "../data";
-import { sourceDraft } from "../features/timetable/draft";
+import { sourceDraft } from "./fixtures/timetable";
 import { overlappingSessions, validSlot } from "../features/timetable/schedule";
 
 let db: UniCoreDatabase,

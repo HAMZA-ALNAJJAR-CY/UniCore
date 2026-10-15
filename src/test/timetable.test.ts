@@ -4,7 +4,8 @@ import Dexie from "dexie";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { UniCoreDatabase, SCHEMA_V1 } from "../data/database";
 import { AcademicStore } from "../data/store";
-import { sourceDraft, analyzeDraft } from "../features/timetable/draft";
+import { analyzeDraft } from "../features/timetable/draft";
+import { sourceDraft } from "./fixtures/timetable";
 import type { ImportMapping, TimetableReview } from "../data";
 
 let db: UniCoreDatabase, store: AcademicStore;
@@ -339,39 +340,33 @@ describe("Atomic confirmed import and re-import", () => {
       courseId = crypto.randomUUID(),
       materialId = crypto.randomUUID(),
       fileId = crypto.randomUUID();
-    await legacy
-      .table("academicTerms")
-      .add({
-        ...meta,
-        id: termId,
-        name: "Legacy",
-        academicYear: "2030/2031",
-        semester: 1,
-      });
-    await legacy
-      .table("courses")
-      .add({
-        ...meta,
-        id: courseId,
-        academicTermId: termId,
-        code: "OLD",
-        name: "Legacy course",
-        registeredHours: 1,
-      });
+    await legacy.table("academicTerms").add({
+      ...meta,
+      id: termId,
+      name: "Legacy",
+      academicYear: "2030/2031",
+      semester: 1,
+    });
+    await legacy.table("courses").add({
+      ...meta,
+      id: courseId,
+      academicTermId: termId,
+      code: "OLD",
+      name: "Legacy course",
+      registeredHours: 1,
+    });
     await legacy
       .table("materials")
       .add({ ...meta, id: materialId, courseId, title: "Legacy resource" });
-    await legacy
-      .table("materialFiles")
-      .add({
-        ...meta,
-        id: fileId,
-        materialId,
-        fileName: "bytes",
-        fileSize: 6,
-        mimeType: "",
-        blob: new Blob(["legacy"]),
-      });
+    await legacy.table("materialFiles").add({
+      ...meta,
+      id: fileId,
+      materialId,
+      fileName: "bytes",
+      fileSize: 6,
+      mimeType: "",
+      blob: new Blob(["legacy"]),
+    });
     legacy.close();
     await store.open();
     expect(db.verno).toBe(3);

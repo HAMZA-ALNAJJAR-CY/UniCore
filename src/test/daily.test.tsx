@@ -127,6 +127,23 @@ describe("local recurring time calculations", () => {
   });
 });
 describe("dashboard, calendar and language UI", () => {
+  it("opens the confirmed import term explicitly with a success notice", async () => {
+    setLanguage("en");
+    const mocked = store();
+    render(
+      <MemoryRouter
+        initialEntries={[
+          { pathname: "/", state: { termId: term.id, timetableSaved: true } },
+        ]}
+      >
+        <Dashboard store={mocked} />
+      </MemoryRouter>,
+    );
+    await screen.findByText(
+      "Timetable saved. Continue your academic day from the Dashboard.",
+    );
+    expect(mocked.getTimetable).toHaveBeenCalledWith(term.id);
+  });
   it("renders real snapshot statistics and today sessions without repeated timer reads", async () => {
     setLanguage("en");
     const mocked = store();
@@ -197,9 +214,7 @@ describe("dashboard, calendar and language UI", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "Timetable review",
     );
-    expect(screen.getByLabelText("Term name")).toHaveValue(
-      "الفصل الدراسي الأول 2026/2027",
-    );
+    expect(screen.getByLabelText("Term name")).toHaveValue("");
     expect(localStorage.getItem("unicore.language")).toBe("en");
     expect(tr("text_153")).toMatch(/valid day/);
     expect(

@@ -1021,3 +1021,31 @@ main:focus {
     width: 100%;
   }
 }
+.introduction h2 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-block: 16px;
+}
+.introduction .management-actions {
+  align-items: stretch;
+}
+.settings-link {
+  padding: 8px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.introduction .review-card p {
+  max-width: 65ch;
+}
+@media (max-width: 480px) {
+  .introduction .management-actions {
+    flex-direction: column;
+  }
+  .topbar {
+    gap: 8px;
+  }
+  .settings-link {
+    font-size: 13px;
+  }
+}

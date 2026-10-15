@@ -14,9 +14,9 @@ function renderRoute(path = "/") {
 }
 
 describe("Phase 0 shell", () => {
-  it("renders the dashboard with honest planned feature labels", () => {
+  it("renders the academic entry without inventing data", async () => {
     renderRoute();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
       "مرحباً بك في UniCore",
     );
     expect(
@@ -51,7 +51,7 @@ describe("Phase 0 shell", () => {
       expect(screen.getByRole("main")).toHaveFocus();
     },
   );
-  it("handles unknown routes and offers working recovery", () => {
+  it("handles unknown routes and offers working recovery", async () => {
     renderRoute("/missing");
     expect(
       screen.getByRole("heading", { name: "الصفحة غير موجودة" }),
@@ -59,7 +59,7 @@ describe("Phase 0 shell", () => {
     fireEvent.click(
       screen.getByRole("link", { name: "العودة إلى لوحة التحكم" }),
     );
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
       "مرحباً بك في UniCore",
     );
   });

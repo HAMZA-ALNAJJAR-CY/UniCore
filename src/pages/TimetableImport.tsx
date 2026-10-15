@@ -1,7 +1,8 @@
 import { tr, dynamic, useLanguage, translateMessage } from "../i18n/locale";
 import { useEffect, useId, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { timetableText } from "../features/timetable/messages";
+import { introductionText } from "../i18n/introduction";
 import { CheckCircle2, FileCheck2, Plus, Trash2 } from "lucide-react";
 import {
   createAcademicStore,
@@ -14,7 +15,7 @@ import {
   analyzeDraft,
   DAYS,
   FIELD_LABELS,
-  sourceDraft,
+  emptyDraft,
 } from "../features/timetable/draft";
 
 const defaultStore = createAcademicStore();
@@ -180,11 +181,15 @@ function WeeklySummary({ draft }: { draft: TimetableDraft }) {
 
 export function TimetableImport({
   store = defaultStore,
+  initialDraft,
 }: {
   store?: ReturnType<typeof createAcademicStore>;
+  initialDraft?: TimetableDraft;
 }) {
   useLanguage();
-  const [draft, setDraft] = useState(sourceDraft);
+  const navigate = useNavigate();
+  const [draft, setDraft] = useState(() => initialDraft ?? emptyDraft());
+  const startingDraft = useRef(draft);
   const [step, setStep] = useState(0);
   const [ready, setReady] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -203,8 +208,10 @@ export function TimetableImport({
       try {
         const existingTerms = await store.academicTerms.list();
         if (active) setTerms(existingTerms);
-        const initial = await store.reviewTimetable(sourceDraft());
-        if (active) setDraft(initial.draft);
+        if (!analyzeDraft(startingDraft.current).errors.length) {
+          const initial = await store.reviewTimetable(startingDraft.current);
+          if (active) setDraft(initial.draft);
+        }
       } catch (failure) {
         if (active) {
           setError(message(failure));
@@ -299,10 +306,15 @@ export function TimetableImport({
         setError(message(new DataError(code, tr("text_56"))));
         setConfirmed(false);
         setPlan(null);
-      } else
+      } else {
         setSuccess(
           tr("text_57", [result.created.length, result.skipped.length]),
         );
+        navigate("/", {
+          replace: true,
+          state: { timetableSaved: true, termId: plan.draft.term.id },
+        });
+      }
     } catch (failure) {
       setError(message(failure));
       setConfirmed(false);
@@ -317,6 +329,7 @@ export function TimetableImport({
         <p className="eyebrow">{tr("text_58")}</p>
         <h1>{tr("text_2")}</h1>
         <p>{tr("text_59")}</p>
+        <p className="review-note">{introductionText.unsupported}</p>
       </header>
       <ol className="review-steps" aria-label={tr("text_60")}>
         {STEPS.map((label, index) => (

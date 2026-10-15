@@ -10,7 +10,8 @@ import {
 } from "react-router-dom";
 import { GraduationCap } from "lucide-react";
 import { navigation } from "./navigation";
-import { Dashboard } from "../pages/Dashboard";
+import { Home, ManualSetup, Settings } from "../pages/Introduction";
+import { introductionText } from "../i18n/introduction";
 import { PlannedPage } from "../pages/PlannedPage";
 import { NotFound } from "../pages/NotFound";
 import { ToastProvider } from "../components/ToastProvider";
@@ -48,7 +49,7 @@ function Shell() {
         ? tr("text_2")
         : (navigation.find((item) => item.path === location.pathname)?.label ??
           tr("text_3"));
-    document.title = `${label} | UniCore`;
+    document.title = `${location.pathname === "/settings" ? introductionText.settings : location.pathname === "/courses/setup" ? introductionText.newTerm : label} | UniCore`;
     main.current?.focus();
   }, [location.pathname, language]);
   return (
@@ -79,6 +80,9 @@ function Shell() {
       </aside>
       <div className="workspace">
         <header className="topbar">
+          <Link className="settings-link" to="/settings">
+            {introductionText.settings}
+          </Link>
           <label className="language-select">
             <span>Language / اللغة</span>
             <select
@@ -116,7 +120,9 @@ export function App() {
     <ToastProvider>
       <Routes>
         <Route element={<Shell />}>
-          <Route index element={<Dashboard />} />
+          <Route index element={<Home />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="courses/setup" element={<ManualSetup />} />
           <Route path="courses" element={<Courses />} />
           <Route path="courses/import" element={<TimetableImport />} />
           <Route path="calendar" element={<Calendar />} />

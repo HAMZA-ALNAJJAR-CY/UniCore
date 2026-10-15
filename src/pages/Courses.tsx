@@ -1,6 +1,7 @@
 import { translateMessage } from "../i18n/locale";
 import { useEffect, useId, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { introductionText } from "../i18n/introduction";
 import {
   createAcademicStore,
   DataError,
@@ -331,6 +332,8 @@ type Removal =
   | { kind: "session"; record: ScheduleSession; graph: DeletionEntry[] };
 
 export function Courses({ store = defaultStore }: { store?: Store }) {
+  const [params] = useSearchParams();
+  const requestedTerm = params.get("term") ?? undefined;
   const [data, setData] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
@@ -341,7 +344,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   useEffect(() => {
     let active = true;
     store
-      .getTimetable()
+      .getTimetable(requestedTerm)
       .then((snapshot) => {
         if (active) setData(snapshot);
       })
@@ -354,7 +357,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     return () => {
       active = false;
     };
-  }, [store]);
+  }, [store, requestedTerm]);
 
   async function load(termId = data?.termId) {
     setBusy(true);
@@ -496,6 +499,9 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
       <div className="management-toolbar">
         <Link className="button-link" to="/courses/import">
           {t.import}
+        </Link>
+        <Link className="button-link" to="/courses/setup">
+          {introductionText.startSetup}
         </Link>
         <button disabled={locked} onClick={() => void load()}>
           {t.retry}

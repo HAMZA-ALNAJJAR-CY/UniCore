@@ -236,8 +236,8 @@
     "en": "Local import after review"
   },
   "text_59": {
-    "ar": "مسودة من الجدول المقدم، وليست بيانات مؤكدة. لن تُحفظ المقررات أو الجلسات إلا بعد تأكيدك الصريح.",
-    "en": "Draft from the supplied timetable, subject to confirmation. Courses and sessions are saved only after explicit confirmation."
+    "ar": "مسودة قابلة للتعديل. لن تُحفظ المقررات أو الجلسات إلا بعد المراجعة والتأكيد الصريح.",
+    "en": "An editable draft. Courses and sessions are saved only after review and explicit confirmation."
   },
   "text_60": {
     "ar": "خطوات الاستيراد",
@@ -292,12 +292,12 @@
     "en": "Resolve safely from mappings or academic year/semester"
   },
   "text_73": {
-    "ar": "المصدر يسجل 15 ساعة. الإجمالي أدناه يُحسب من المقررات بعد تعديلاتك. لا توجد تواريخ فصل أو منطقة زمنية مفترضة.",
-    "en": "The source lists 15 credits. Totals below reflect your edits. No term dates or timezone are assumed."
+    "ar": "ابدأ ببياناتك الفعلية. لا تُفترض تواريخ الفصل أو المنطقة الزمنية.",
+    "en": "Start with your actual academic data. No term dates or timezone are assumed."
   },
   "text_74": {
-    "ar": "المدرس والشعبة اختياريان. لا تدمج مقرر البرمجة ومختبره؛ لكل منهما رمز مستقل.",
-    "en": "Instructor and section are optional. Programming and its lab have separate course codes."
+    "ar": "المدرس والشعبة اختياريان. احتفظ بالمقررات ذات الرموز المختلفة منفصلة.",
+    "en": "Instructor and section are optional. Keep courses with different codes separate."
   },
   "text_75": {
     "ar": "المقرر {0}",
@@ -352,8 +352,8 @@
     "en": "Add course"
   },
   "text_88": {
-    "ar": "الأوقات بصيغة 24 ساعة. الأيام الأخرى غير مذكورة في المصدر؛ لا يعني ذلك خلوها من الالتزامات.",
-    "en": "Times use 24-hour format. Unlisted days may still contain other commitments."
+    "ar": "الأوقات بصيغة 24 ساعة. الأيام غير المسجلة قد تضم التزامات أخرى.",
+    "en": "Times use 24-hour format. Unlisted days may contain other commitments."
   },
   "text_89": {
     "ar": "الجلسة {0}",

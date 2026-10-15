@@ -1,3 +1,4 @@
+import { sourceDraft } from "./fixtures/timetable";
 import {
   render,
   screen,
@@ -49,7 +50,7 @@ async function mount() {
   const mocked = mockStore();
   render(
     <MemoryRouter>
-      <TimetableImport store={mocked.store} />
+      <TimetableImport store={mocked.store} initialDraft={sourceDraft()} />
     </MemoryRouter>,
   );
   await waitFor(() =>

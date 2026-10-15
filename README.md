@@ -25,7 +25,7 @@ UniCore is a university management application with an offline-first PWA vision.
 
 - Arabic RTL shell and `/courses/import`, reached from Courses.
 - Five steps: editable term, courses, weekly sessions, validation, and explicit confirmation.
-- The supplied timetable is an editable draft: seven courses, 15 weekly sessions, 15 registered hours. Opening/reviewing it does not save academic records.
+- Review works with typed timetable drafts. The historical supplied sample now lives only in test fixtures; production drafts start empty and never seed records.
 - Missing instructors remain null; uncertain B203 notes remain flagged. Optional unknowns do not block saving. Overlaps and zero-minute transitions are reported separately.
 - Atomic save of term/courses/sessions and separate source mappings. Re-import shows existing records and differences; users must explicitly keep differing saved values or return to edit/exclude draft rows. Existing academic fields are never overwritten by import.
 - Additive schema v3 retains seven domain stores and adds one import-metadata store. See [RECOVERY.md](RECOVERY.md) for UUID migration recovery.
@@ -54,6 +54,14 @@ Developers use `createAcademicStore()` from `src/data`, never direct Dexie table
 Attachments are IndexedDB Blobs, local to the current browser/origin and not synchronized. The new upload path accepts MP3/WAV/M4A/AAC/OGG/FLAC/Opus audio, MP4/WebM/MOV video, JPG/JPEG/PNG/WebP images, PDF/Office/text/CSV/OpenDocument files, up to **100 MiB per nonempty file**. Extension and MIME compatibility are checked; missing/generic MIME is allowed only for known extensions. These checks are not malware scanning. Files are downloaded as binary, never rendered or executed inside UniCore. No previews/player/editor are included.
 
 Each file has an independent transaction: failures do not discard successful siblings. Retry IDs are retained while the selection remains mounted, and existing IDs are skipped without replacing bytes. Picking a file again intentionally creates a new upload identity; content deduplication is not implemented. Soft deletion retains Blob bytes and does not reclaim quota. Browser eviction/clearing may lose files; no backup or permanence guarantee exists. Schema remains v3 and dependencies are unchanged.
+
+## Master roadmap — Phase A foundations
+
+First-run introduction uses actual persisted record presence across all stores, including partial history/tombstones, rather than trusting a preference alone. A short skippable four-stop tour offers Import / Manual / Later. Returning users bypass the automatic introduction. Local-only completion is separate from academic records. Storage-read errors do not trigger a clean-install assumption.
+
+`/courses/setup` creates a real user-entered term through the repository and opens that exact term in Courses, making manual course entry usable without import. Empty dashboard/calendar/course views provide setup actions. Confirmed import returns to the Dashboard with feedback and the imported term selected. `/settings` is deliberately limited to language/local-mode information and replaying the introduction; profiles/accounts remain later work.
+
+The former personal sample is isolated in `src/test/fixtures/timetable.ts`, outside the production dependency graph. Existing saved data is never removed or rekeyed. `/courses/import` retains editable review/confirmation but opens blank, with an explicit notice: file ingestion, parsing and OCR do not exist yet and belong to roadmap Phase B. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the audit, dependency order and deferred scope.
 
 ## Planned, not implemented
 

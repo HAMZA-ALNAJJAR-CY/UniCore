@@ -79,6 +79,15 @@ export class AcademicStore {
     this.database.close();
   }
 
+  /** Presence, not completeness: any persisted history/partial record prevents first-run classification. */
+  getAcademicPresence() {
+    return this.run("r", async () => ({
+      hasRecords: (
+        await Promise.all(this.database.tables.map((table) => table.count()))
+      ).some((count) => count > 0),
+    }));
+  }
+
   /** Indexed lecture workspace read. Attachment bytes are loaded only for an opened lecture. */
   getLectureWorkspace(lectureId?: string) {
     return this.run("r", async () => {

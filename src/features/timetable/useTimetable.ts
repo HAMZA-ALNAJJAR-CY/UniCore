@@ -5,14 +5,17 @@ export type TimetableStore = Pick<
   ReturnType<typeof createAcademicStore>,
   "getTimetable"
 >;
-export function useTimetable(source: TimetableStore = store) {
+export function useTimetable(
+  source: TimetableStore = store,
+  initialTermId?: string,
+) {
   const [data, setData] = useState<Awaited<
     ReturnType<TimetableStore["getTimetable"]>
   > | null>(null);
   const [error, setError] = useState(false),
     [loading, setLoading] = useState(true),
     [request, setRequest] = useState({
-      termId: undefined as string | undefined,
+      termId: initialTermId,
       version: 0,
     });
   useEffect(() => {
