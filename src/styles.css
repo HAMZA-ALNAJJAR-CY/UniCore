@@ -507,6 +507,12 @@ main:focus {
   font-weight: 650;
   margin-block-end: 6px;
 }
+.managed-course {
+  scroll-margin-block-start: 24px;
+}
+.timetable-management > .review-alert li {
+  overflow-wrap: anywhere;
+}
 .course-code {
   color: #c4b5fd;
   font-size: 13px;
@@ -953,6 +959,15 @@ main:focus {
 }
 .next-session {
   border-inline-start: 3px solid var(--color-secondary);
+}
+.dashboard-page > .review-card,
+.dashboard-page .managed-session > a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dashboard-page .managed-session > a {
+  flex: 1 1 12rem;
+  max-inline-size: 100%;
 }
 @media (max-width: 1100px) {
   .daily-stats {

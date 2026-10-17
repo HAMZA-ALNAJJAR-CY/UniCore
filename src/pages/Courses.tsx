@@ -349,7 +349,9 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [view, setView] = useState<"courses" | "week">("courses");
+  const [viewChoice, setViewChoice] = useState<{ key: string; view: "courses" | "week" }>({ key: location.key, view: "courses" });
+  // A new course-target navigation reveals the card; later view choices remain explicit.
+  const view = location.hash.startsWith("#course-") && viewChoice.key !== location.key ? "courses" : viewChoice.view;
   const [editor, setEditor] = useState<Editor | null>(null);
   const [editorTermId, setEditorTermId] = useState<string | undefined>();
   const [removal, setRemoval] = useState<Removal | null>(null);
@@ -358,6 +360,25 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   useEffect(() => () => { writeOperation.current = null; }, [store]);
   const protectedTermId = editor ? editorTermId : removal?.record.academicTermId;
   const loadedContext = useRef<{ store: Store; termId: string | undefined } | null>(null);
+  const handledCourseTarget = useRef<{ context: typeof refreshContext; hash: string } | null>(null);
+  useEffect(() => {
+    const nextLocation = router?.state.location;
+    if (!data || busy || refreshing || protectedTermId ||
+      loadedContext.current?.store !== store || loadedContext.current.termId !== data.termId ||
+      (requestedTerm && data.termId !== requestedTerm.toLowerCase()) ||
+      (nextLocation && (nextLocation.key !== location.key || nextLocation.pathname !== location.pathname || nextLocation.search !== location.search || nextLocation.hash !== location.hash)) ||
+      (handledCourseTarget.current?.context === refreshContext && handledCourseTarget.current.hash === location.hash)) return;
+    let id: string;
+    try { id = decodeURIComponent(location.hash).replace(/^#course-/, ""); }
+    catch { return; }
+    if (!location.hash.startsWith("#course-") || !data.courses.some(course => course.id === id)) return;
+    if (view !== "courses") return;
+    const target = document.getElementById("course-" + id);
+    if (!target) return;
+    handledCourseTarget.current = { context: refreshContext, hash: location.hash };
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: "start" });
+  }, [data, busy, refreshing, protectedTermId, requestedTerm, router, location, refreshContext, view, store]);
   useEffect(() => {
     if (!protectedTermId) return;
     const guard = (event: MouseEvent) => {
@@ -658,14 +679,14 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
               <button
                 aria-pressed={view === "courses"}
                 disabled={!!editor || !!removal}
-                onClick={() => setView("courses")}
+                onClick={() => setViewChoice({ key: location.key, view: "courses" })}
               >
                 {t.coursesView}
               </button>
               <button
                 aria-pressed={view === "week"}
                 disabled={!!editor || !!removal}
-                onClick={() => setView("week")}
+                onClick={() => setViewChoice({ key: location.key, view: "week" })}
               >
                 {t.weekView}
               </button>
@@ -788,6 +809,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
                   key={course.id}
                   className="review-card managed-course"
                   aria-label={course.name}
+                  tabIndex={-1}
                 >
                   <header>
                     <div>

@@ -122,7 +122,7 @@ export function Dashboard({ store }: { store?: TimetableStore }) {
   const course = (id: string) => data?.courses.find((row) => row.id === id);
   const remaining = next ? countdownSeconds(next.starts, now) : 0;
   return (
-    <div className="timetable-review daily-page">
+    <div className="timetable-review daily-page dashboard-page">
       <PageHeader title={d.welcome} description={d.overview} />
       {showSaved && (
         <p role="status" className="management-success">
