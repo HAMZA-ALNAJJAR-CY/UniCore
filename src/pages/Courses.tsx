@@ -1,6 +1,6 @@
 import { translateMessage } from "../i18n/locale";
-import { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Link, UNSAFE_DataRouterContext, useLocation, useSearchParams } from "react-router-dom";
+import { useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Link, UNSAFE_DataRouterContext, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { introductionText } from "../i18n/introduction";
 import { EditorNavigationGuard } from "../components/EditorNavigationGuard";
 import {
@@ -335,7 +335,17 @@ type Removal =
 export function Courses({ store = defaultStore }: { store?: Store }) {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const router = useContext(UNSAFE_DataRouterContext)?.router;
+  const replaceTermQuery = useCallback((termId: string) => {
+    const activeLocation = router?.state.location;
+    if (activeLocation && activeLocation.key !== location.key) return;
+    const next = new URLSearchParams(location.search);
+    next.set("term", termId);
+    // Search-only navigation drops the hash. Keep the complete target and state.
+    void navigate({ pathname: location.pathname, search: "?" + next.toString(), hash: location.hash },
+      { replace: true, state: location.state });
+  }, [location, navigate, router]);
   // A return to the same history entry is still a new navigation lifetime.
   const refreshContext = useMemo(() => ({ store, router, key: location.key, pathname: location.pathname, search: location.search }),
     [store, router, location.key, location.pathname, location.search]);
@@ -412,8 +422,10 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
           setError("");
           loadedContext.current = { store, termId: snapshot.termId };
           setData(snapshot);
+          // Finish this read before URL replacement invalidates its effect.
+          setBusy(false);
           if (!requestedTerm && snapshot.termId)
-            setParams(current => { current.set("term", snapshot.termId!); return current; }, { replace: true });
+            replaceTermQuery(snapshot.termId);
         }
       })
       .catch((failure) => {
@@ -421,15 +433,13 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
           loadedContext.current = null;
           setData(null);
           setError(errorText(failure));
+          setBusy(false);
         }
-      })
-      .finally(() => {
-        if (active) setBusy(false);
       });
     return () => {
       active = false;
     };
-  }, [store, requestedTerm, protectedTermId, setParams]);
+  }, [store, requestedTerm, protectedTermId, setParams, replaceTermQuery]);
 
   async function load(termId = requestedTerm ?? data?.termId) {
     const operation = Symbol("course refresh");
@@ -456,7 +466,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
       setData(snapshot);
       loadedContext.current = { store, termId: snapshot.termId };
       if (snapshot.termId && snapshot.termId !== requestedTerm)
-        setParams(current => { current.set("term", snapshot.termId!); return current; }, { replace: true });
+        replaceTermQuery(snapshot.termId);
     } catch (failure) {
       if (current()) setError(errorText(failure));
     } finally {

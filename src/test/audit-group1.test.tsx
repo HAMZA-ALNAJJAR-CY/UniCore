@@ -134,6 +134,55 @@ describe.each([["Dashboard", "/"], ["Calendar", "/calendar"]])("%s invalid term 
 });
 
 describe("Courses asynchronous Manage targets", () => {
+  it.each(["absent", "invalid"])("preserves the target hash when the term query is %s and canonicalized", async kind => {
+    const { b, courseB } = await records();
+    const get = store.getTimetable.bind(store), snapshot = await get(b.id), pending = deferred<typeof snapshot>();
+    vi.spyOn(store, "getTimetable").mockImplementation(id => id === undefined ? pending.promise : get(id));
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    const hash = "#course-" + courseB.id;
+    const { router, dispose } = mount("/courses" + (kind === "absent" ? "" : "?keep=value&term=invalid") + hash);
+    if (kind === "invalid") {
+      await screen.findByRole("alert");
+      fireEvent.click(screen.getByRole("button", { name: t.retry }));
+    }
+    expect(scroll).not.toHaveBeenCalled();
+    await act(async () => pending.resolve(snapshot));
+    const target = await screen.findByRole("article", { name: courseB.name });
+    expect(router.state.location.hash).toBe(hash);
+    expect(router.state.location.search).toBe((kind === "absent" ? "?term=" : "?keep=value&term=") + b.id);
+    expect(router.state.historyAction).toBe("REPLACE");
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(scroll.mock.contexts).toEqual([target]);
+    expect(scroll).toHaveBeenCalledExactlyOnceWith({ block: "start" });
+    expect(focus.mock.contexts.filter(element => element === target)).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: t.retry }));
+    await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(focus.mock.contexts.filter(element => element === target)).toHaveLength(1);
+    expect(router.state.location.hash).toBe(hash);
+    dispose();
+  });
+
+  it("does not canonicalize or focus an old default-term target after navigation", async () => {
+    const { a, b, courseA, courseB } = await records();
+    const get = store.getTimetable.bind(store), snapshot = await get(b.id), pending = deferred<typeof snapshot>();
+    const read = vi.spyOn(store, "getTimetable").mockImplementationOnce(() => pending.promise);
+    const { router, dispose } = mount("/courses#course-" + courseB.id);
+    await waitFor(() => expect(read).toHaveBeenCalledExactlyOnceWith(undefined));
+    await act(async () => {
+      const navigation = router.navigate(`/courses?term=${a.id}#course-${courseA.id}`);
+      pending.resolve(snapshot);
+      await navigation;
+    });
+    const target = await screen.findByRole("article", { name: courseA.name });
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(router.state.location.search).toBe("?term=" + a.id);
+    expect(router.state.location.hash).toBe("#course-" + courseA.id);
+    expect(scroll.mock.contexts).toEqual([target]);
+    expect(screen.queryByRole("article", { name: courseB.name })).not.toBeInTheDocument();
+    dispose();
+  });
+
   it("scrolls and focuses a direct target only after its data loads, without repeating on refresh", async () => {
     const { a, courseA } = await records();
     const snapshot = await store.getTimetable(a.id), pending = deferred<typeof snapshot>();

@@ -1,5 +1,13 @@
 # Development log
 
+## 2026-10-17 — F-04 final course-target canonicalization correction
+
+Started clean at `76fb8509b968630456b0a3d83b2d1f35227c4940`. Three controlled regression cases failed before the fix: an absent term query lost its course hash, invalid-term recovery also dropped the hash, and a delayed default-term read could replace a newer navigation. Courses now replaces the term using the complete pathname/search/hash and existing navigation state, with a live navigation-key check. Unrelated query values survive; explicit term-selection behavior remains unchanged. Successful read completion is recorded before canonicalization can clean up the previous effect, preventing a stuck loading state. No persistence behavior changed.
+
+The new tests prove hash preservation for `/courses#course-C`, preservation during invalid-term correction, replacement rather than extra history, correct target focus, exactly one scroll/focus action, no repeat on refresh, and no stale default-term redirect/focus after navigation. All **26 targeted tests** passed, including the existing query-qualified direct link, Dashboard Manage, missing/deleted-target and term-switch cases. Final validation: **252/252 tests passed across 14 files**; TypeScript, ESLint, production build and diff checks passed. JS 561.42 kB / 179.71 kB gzip; CSS 22.36 kB / 5.61 kB gzip. The existing Vite chunk-size warning remains visible. No additional browser checks were needed for this URL correction; timing/focus cases use controlled React Router tests with isolated synthetic databases.
+
+Exact changed files: `src/pages/Courses.tsx`, `src/test/audit-group1.test.tsx`, and `DEVELOPMENT_LOG.md`. No schema/dependency, deletion/restoration, import-mapping, attachment or Blob changes. Existing user data is untouched. F-01/F-02 and Phase B were not started. Delivery: one local corrective commit; no push.
+
 ## 2026-10-17 — Audit remediation group 1 (F-03, F-05, F-04 only)
 
 Started clean at `8afc197005b670df843f835a2edffd40d30da7bd`. Reproduced Dashboard/Calendar invalid-term errors and missing course-target focus in three failing regression cases before corrections. Browser reproduction with synthetic unbroken English/Arabic names measured a 3923 px page width at a 360 px viewport before the CSS fix.
