@@ -10,6 +10,7 @@ export { DataError } from "./errors";
 export type { DataErrorCode } from "./errors";
 export type * from "./models";
 export type * from "./timetable-types";
+export type { CourseRestorePreview } from "./course-restoration";
 export type {
   BulkResult,
   DeletionEntry,

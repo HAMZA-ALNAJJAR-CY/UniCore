@@ -686,6 +686,9 @@ main:focus {
   font-size: 18px;
   font-weight: 600;
 }
+.course-recovery {
+  overflow-wrap: anywhere;
+}
 .review-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

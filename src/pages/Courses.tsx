@@ -1,4 +1,6 @@
-import { translateMessage } from "../i18n/locale";
+import { translateMessage, useLanguage } from "../i18n/locale";
+import { restorationText } from "../i18n/restoration";
+import { RemovedCourses } from "../components/RemovedCourses";
 import { useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, UNSAFE_DataRouterContext, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { introductionText } from "../i18n/introduction";
@@ -333,6 +335,7 @@ type Removal =
   | { kind: "session"; record: ScheduleSession; graph: DeletionEntry[] };
 
 export function Courses({ store = defaultStore }: { store?: Store }) {
+  useLanguage();
   const [params, setParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -365,10 +368,13 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [editorTermId, setEditorTermId] = useState<string | undefined>();
   const [removal, setRemoval] = useState<Removal | null>(null);
+  const [recovery, setRecovery] = useState<{ store: Store; termId: string }>();
+  const recoveryTermId = recovery?.store === store ? recovery.termId : undefined;
+  const recoveryOpen = recoveryTermId !== undefined;
   const [pendingWrite, setPendingWrite] = useState(false);
   const writeOperation = useRef<symbol | null>(null);
   useEffect(() => () => { writeOperation.current = null; }, [store]);
-  const protectedTermId = editor ? editorTermId : removal?.record.academicTermId;
+  const protectedTermId = editor ? editorTermId : removal?.record.academicTermId ?? recoveryTermId;
   const loadedContext = useRef<{ store: Store; termId: string | undefined } | null>(null);
   const handledCourseTarget = useRef<{ context: typeof refreshContext; hash: string } | null>(null);
   useEffect(() => {
@@ -441,7 +447,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     };
   }, [store, requestedTerm, protectedTermId, setParams, replaceTermQuery]);
 
-  async function load(termId = requestedTerm ?? data?.termId) {
+  async function load(termId = requestedTerm ?? data?.termId, recoverInvalidTerm = true) {
     const operation = Symbol("course refresh");
     refreshOperation.current = operation;
     const current = () => {
@@ -457,7 +463,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
       const snapshot = await store.getTimetable(termId).catch((failure: unknown) => {
         // Only a definitively invalid/missing term permits default selection.
         // Storage failures must retain the URL's term even without loaded data.
-        if (current() && termId && failure instanceof DataError &&
+        if (recoverInvalidTerm && current() && termId && failure instanceof DataError &&
           (failure.code === "VALIDATION" || failure.code === "NOT_FOUND"))
           return store.getTimetable();
         throw failure;
@@ -484,9 +490,10 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     setError("");
   }
   function cancel() {
-    if (writeOperation.current) return;
+    if (writeOperation.current || pendingWrite) return;
     setEditor(null);
     setRemoval(null);
+    setRecovery(undefined);
     setError("");
   }
   async function write(
@@ -563,7 +570,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     }
   }
   const transitioning = !protectedTermId && data !== null && requestedTerm !== undefined && requestedTerm !== data.termId;
-  const locked = busy || refreshing || transitioning || !!editor || !!removal;
+  const locked = busy || refreshing || transitioning || !!editor || !!removal || recoveryOpen;
   const courses = data?.courses ?? [];
   const sessions = ordered(data?.sessions ?? []);
   const conflicts = sessions.flatMap((row, index) =>
@@ -633,6 +640,9 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
         <button disabled={locked} onClick={() => void load()}>
           {t.retry}
         </button>
+        <button disabled={locked || !data?.termId} onClick={() => { if (data?.termId) setRecovery({ store, termId: data.termId }); setError(""); setNotice(""); }}>
+          {restorationText.title}
+        </button>
       </div>
       <p className="review-note">{t.refreshHint}</p>
       {(busy || refreshing || transitioning) && <p role="status">{t.loading}</p>}
@@ -647,6 +657,9 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
           {translateMessage(error)}
         </p>
       )}
+      {error && translateMessage(error) === t.duplicate && <p className="review-note">{restorationText.reserved}</p>}
+      {recoveryTermId && <RemovedCourses store={store} termId={recoveryTermId}
+        onClose={cancel} onPendingChange={setPendingWrite} onRestored={() => load(recoveryTermId, false)} />}
       {data && !data.terms.length && <p className="review-card">{t.noTerm}</p>}
       {conflicts.length > 0 && (
         <section className="review-alert" aria-label={t.overlaps}>
@@ -688,14 +701,14 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
             >
               <button
                 aria-pressed={view === "courses"}
-                disabled={!!editor || !!removal}
+                disabled={!!editor || !!removal || recoveryOpen}
                 onClick={() => setViewChoice({ key: location.key, view: "courses" })}
               >
                 {t.coursesView}
               </button>
               <button
                 aria-pressed={view === "week"}
-                disabled={!!editor || !!removal}
+                disabled={!!editor || !!removal || recoveryOpen}
                 onClick={() => setViewChoice({ key: location.key, view: "week" })}
               >
                 {t.weekView}

@@ -14,6 +14,8 @@ import type {
 import { assertInput, invalid, validate } from "./validation";
 import { buildTimetableReview } from "./timetable-review";
 import { listSources, reopenSource } from "./import-sources";
+import { courseRestorationCandidate, courseRestorePreview, removedCourses } from "./course-restoration";
+import { restorationText } from "../i18n/restoration";
 import { fileProblem } from "../features/lectures/files";
 import { overlappingSessions } from "../features/timetable/schedule";
 import type {
@@ -308,6 +310,29 @@ export class AcademicStore {
         cascade: true,
         confirmation,
       });
+    });
+  }
+
+  /** Selected-term discovery, without loading history or attachment bytes. */
+  getRemovedCourses(termId: string) {
+    return this.run("r", () => removedCourses(this.database, termId));
+  }
+
+  previewCourseRestore(id: string) {
+    return this.run("r", () => courseRestorePreview(this.database, id));
+  }
+
+  /** Explicit course-only restoration. Sessions/history/mappings are never written.
+   * Rebuild the preview and check its full snapshot and revision in one transaction.
+   */
+  restoreCourse(id: string, expectedRevision: number, snapshot: string) {
+    return this.run("rw", async () => {
+      const fresh = await courseRestorePreview(this.database, id);
+      this.revision(fresh.course.revision, expectedRevision);
+      if (fresh.snapshot !== snapshot) throw new DataError("CONFLICT", restorationText.stale);
+      const course = courseRestorationCandidate(fresh.course);
+      await this.database.records("courses").put(course);
+      return course;
     });
   }
 
