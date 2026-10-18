@@ -1,5 +1,6 @@
 import type { UniCoreDatabase } from "./database";
 import { DataError } from "./errors";
+import { uuid, validate } from "./validation";
 import type {
   ImportMapping,
   SavedImportSource,
@@ -60,31 +61,66 @@ export async function reopenSource(
     mapping: ImportMapping,
   ) {
     const record = await db.records(kind).get(mapping.recordId);
-    if (!record || record.deletedAt !== null) throw new DataError("CONFLICT", t.brokenSource);
+    if (!record) throw new DataError("CONFLICT", t.brokenSource);
+    if (record.deletedAt !== null) {
+      // Deletion uses Date.now(): a positive integer epoch-millisecond timestamp.
+      if (!Number.isSafeInteger(record.deletedAt) || record.deletedAt <= 0 ||
+        !Number.isFinite(new Date(record.deletedAt).getTime()))
+        throw new DataError("CONFLICT", t.brokenSource);
+      try {
+        // Validate persisted values directly; never run the normalizing write path.
+        uuid(record.id);
+        validate(kind, record);
+      } catch (error) {
+        if (error instanceof DataError && error.code === "VALIDATION")
+          throw new DataError("CONFLICT", t.brokenSource, { cause: error });
+        throw error;
+      }
+    }
     const { createdAt, updatedAt, deletedAt, revision, ...values } = record;
     void createdAt;
     void updatedAt;
-    void deletedAt;
     void revision;
-    return { ...values, key: mapping.sourceKey, unconfirmed: [...mapping.unconfirmed] };
+    return {
+      values: { ...values, key: mapping.sourceKey, unconfirmed: [...mapping.unconfirmed] },
+      deleted: deletedAt !== null,
+    };
   }
-  const term = await read("academicTerms", terms[0]);
+  const savedTerm = await read("academicTerms", terms[0]);
+  if (savedTerm.deleted) throw new DataError("CONFLICT", t.brokenSource);
+  const term = savedTerm.values;
+  const omittedDeletedRows: NonNullable<TimetableDraft["omittedDeletedRows"]> = [];
   const courseMappings = representatives.filter(row => row.entity === "courses");
-  const courses = await Promise.all(courseMappings.map(async mapping => {
-    const row = await read("courses", mapping);
+  const savedCourses = await Promise.all(courseMappings.map(async mapping => {
+    const { values: row, deleted } = await read("courses", mapping);
     if (row.academicTermId !== term.id) throw new DataError("CONFLICT", t.brokenSource);
     const { academicTermId, ...course } = row;
     void academicTermId;
-    return course;
+    return { course, deleted };
   }));
-  const sessions = await Promise.all(representatives.filter(row => row.entity === "scheduleSessions").map(async mapping => {
-    const row = await read("scheduleSessions", mapping);
-    const course = courses.find(course => course.id === row.courseId);
-    if (!course || row.academicTermId !== term.id) throw new DataError("CONFLICT", t.brokenSource);
+  // Check the entire retained graph, including deleted rows, before omitting any.
+  // Tombstones are complete deletion history; absent targets are damaged sources.
+  const savedSessions = await Promise.all(representatives.filter(row => row.entity === "scheduleSessions").map(async mapping => {
+    const { values: row, deleted } = await read("scheduleSessions", mapping);
+    const parent = savedCourses.find(saved => saved.course.id === row.courseId);
+    if (!parent || row.academicTermId !== term.id || (!deleted && parent.deleted))
+      throw new DataError("CONFLICT", t.brokenSource);
     const { academicTermId, courseId, ...session } = row;
     void academicTermId;
     void courseId;
-    return { ...session, courseKey: course.key };
+    return { session: { ...session, courseKey: parent.course.key }, deleted, course: parent.course };
   }));
-  return { sourceId, term, courses, sessions };
+  for (const { course, deleted } of savedCourses) {
+    if (deleted) omittedDeletedRows.push({ entity: "courses", id: course.id, key: course.key, label: course.name });
+  }
+  for (const { session, deleted, course } of savedSessions) {
+    if (deleted) omittedDeletedRows.push({ entity: "scheduleSessions", id: session.id, key: session.key,
+      label: `${course.name} (${session.startTime}–${session.endTime})` });
+  }
+  return {
+    sourceId, term,
+    courses: savedCourses.filter(row => !row.deleted).map(row => row.course),
+    sessions: savedSessions.filter(row => !row.deleted).map(row => row.session),
+    ...(omittedDeletedRows.length ? { omittedDeletedRows } : {}),
+  };
 }

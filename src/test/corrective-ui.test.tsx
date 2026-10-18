@@ -528,6 +528,44 @@ it("blocks browser history navigation until the user keeps or explicitly discard
   expect((await store.courses.get(course.id))?.name).toBe(course.name);
 });
 
+it("reopens a saved source after confirmed course removal and visibly explains omitted records in both languages", async () => {
+  const first = await store.reviewTimetable(sourceDraft());
+  expect((await store.saveTimetable(first, { confirmed: true, keepExistingKeys: [] })).committed).toBe(true);
+  const removed = first.draft.courses[0];
+  const view = render(<MemoryRouter initialEntries={["/courses?term=" + first.draft.term.id]}>
+    <Probe jump={"/courses/import?source=" + first.draft.sourceId} />
+    <Routes><Route path="/courses" element={<Courses store={store} />} />
+      <Route path="/courses/import" element={<TimetableImport store={store} />} /></Routes>
+  </MemoryRouter>);
+  const card = await screen.findByRole("article", { name: removed.name });
+  fireEvent.click(within(card).getByRole("button", { name: t.removeCourse }));
+  const confirmation = await screen.findByRole("region", { name: t.confirmDelete });
+  fireEvent.click(within(confirmation).getByRole("button", { name: t.confirmDelete }));
+  await waitFor(() => expect(screen.queryByRole("article", { name: removed.name })).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: "Change route" }));
+  await screen.findByDisplayValue(first.draft.term.name);
+  expect(screen.getByRole("region", { name: intro.omittedDeletedRows })).toHaveTextContent(removed.name);
+  expect(within(screen.getByRole("region", { name: intro.omittedDeletedRows })).getAllByRole("listitem"))
+    .toHaveLength(1 + first.draft.sessions.filter(row => row.courseKey === removed.key).length);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  act(() => setLanguage("ar"));
+  expect(screen.getByRole("region", { name: intro.omittedDeletedRows })).toHaveTextContent(removed.name);
+  act(() => setLanguage("en"));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(screen.getAllByRole("region", { name: /^Course \d/ })).toHaveLength(6);
+  expect(screen.queryByDisplayValue(removed.name)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(screen.getAllByRole("region", { name: /^Session \d/ })).toHaveLength(first.draft.sessions.filter(row => row.courseKey !== removed.key).length);
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByRole("heading", { name: "Final review" });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  view.unmount();
+  render(<MemoryRouter initialEntries={["/courses/import?source=" + first.draft.sourceId]}><TimetableImport store={store} /></MemoryRouter>);
+  await screen.findByRole("region", { name: intro.omittedDeletedRows });
+  expect(await store.courses.get(removed.id!)).toBeUndefined();
+});
+
 it("reopens the import route using discoverable stored mappings and reviews an edited time", async () => {
   const first = await store.reviewTimetable(sourceDraft());
   await store.saveTimetable(first, { confirmed: true, keepExistingKeys: [] });

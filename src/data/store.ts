@@ -323,7 +323,8 @@ export class AcademicStore {
     return this.run("r", () => listSources(this.database));
   }
 
-  /** Resume current saved values with original source/row IDs. Missing/deleted targets fail closed. */
+  /** Resume active values with original IDs and explicit notices for validated
+   * course/session tombstones. Missing targets or inconsistent graphs fail closed. */
   reopenImportSource(sourceId: string): Promise<TimetableDraft> {
     return this.run("r", () => reopenSource(this.database, sourceId));
   }

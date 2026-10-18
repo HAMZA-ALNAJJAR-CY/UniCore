@@ -422,11 +422,12 @@ describe("corrective source identity recovery", () => {
     expect((await store.reopenImportSource(incoming.sourceId)).sessions[0].courseKey).toBe(other.key);
   });
 
-  it("rolls back new records and mapping changes if retained historical mappings cannot reopen", async () => {
+  it("rolls back new records and mapping changes if a retained historical target is missing", async () => {
     const first = await store.reviewTimetable(sourceDraft());
     await store.saveTimetable(first, confirm(first));
     const deleted = first.draft.sessions[0];
-    await store.scheduleSessions.delete(deleted.id!, { expectedRevision: 1 });
+    // Physical loss is corruption, unlike an intact deliberate-deletion tombstone.
+    await db.records("scheduleSessions").delete(deleted.id!);
     const incoming = structuredClone(first.draft);
     incoming.sessions = incoming.sessions.filter(row => row.id !== deleted.id);
     incoming.sessions.push({ ...deleted, id: crypto.randomUUID(), key: "new-session", identity: "new", dayOfWeek: 1, startTime: "06:00", endTime: "07:00" });
@@ -619,13 +620,15 @@ describe("corrective source identity recovery", () => {
     expect(await store.scheduleSessions.get(separate.draft.sessions[0].id!)).not.toHaveProperty("identity");
   });
 
-  it("keeps tombstoned and partial sources discoverable but refuses to reconstruct or resurrect them", async () => {
+  it("discloses deleted sessions without resurrecting them and still rejects partial sources", async () => {
     const first = await store.reviewTimetable(sourceDraft());
     await store.saveTimetable(first, confirm(first));
     const id = first.draft.sessions[0].id!;
     await store.scheduleSessions.delete(id, { expectedRevision: 1 });
     expect(await store.listImportSources()).toHaveLength(1);
-    await expect(store.reopenImportSource(first.draft.sourceId)).rejects.toMatchObject({ code: "CONFLICT" });
+    const reopened = await store.reopenImportSource(first.draft.sourceId);
+    expect(reopened.sessions.some(row => row.id === id)).toBe(false);
+    expect(reopened.omittedDeletedRows).toEqual([expect.objectContaining({ entity: "scheduleSessions", id })]);
     expect((await store.scheduleSessions.get(id, { includeDeleted: true }))?.deletedAt).not.toBeNull();
     await db.table("importMappings").add({ key: "partial", sourceId: "partial", entity: "courses", sourceKey: "missing", recordId: crypto.randomUUID(), unconfirmed: [], createdAt: 1 });
     expect(await store.listImportSources()).toHaveLength(2);

@@ -424,6 +424,10 @@ function TimetableReviewForm({
         <p>{tr("text_59")}</p>
         <p className="review-note">{introductionText.unsupported}</p>
         {initialDraft?.term.id && <p className="review-note">{introductionText.resumedSource}</p>}
+        {!!draft.omittedDeletedRows?.length && <section className="review-note" aria-label={introductionText.omittedDeletedRows}>
+          <p>{introductionText.omittedDeletedRows}</p>
+          <ul>{draft.omittedDeletedRows.map(row => <li key={`${row.entity}:${row.id}`}>{row.label}</li>)}</ul>
+        </section>}
       </header>
       <ol className="review-steps" aria-label={tr("text_60")}>
         {STEPS.map((label, index) => (

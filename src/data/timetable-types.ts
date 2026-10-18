@@ -21,6 +21,14 @@ export interface TimetableDraft {
   term: DraftTerm;
   courses: DraftCourse[];
   sessions: DraftSession[];
+  /** Recovery notice only: validated tombstones omitted from the editable draft.
+   * Never persisted or interpreted as a request to delete/restore a record. */
+  omittedDeletedRows?: {
+    entity: "courses" | "scheduleSessions";
+    id: string;
+    key: string;
+    label: string;
+  }[];
 }
 export interface ImportMapping {
   key: string;
