@@ -1,5 +1,6 @@
 import { tr } from "../i18n/locale";
 import { introductionText as t } from "../i18n/introduction";
+import { pdfText } from "../i18n/pdf";
 import { analyzeDraft, FIELD_LABELS, DAYS } from "../features/timetable/draft";
 import { UniCoreDatabase } from "./database";
 import { DataError } from "./errors";
@@ -38,6 +39,9 @@ export async function buildTimetableReview(
     throw new DataError("VALIDATION", tr("text_213"));
   const draft: TimetableDraft = {
     ...source,
+    weekdayReviews: source.weekdayReviews?.map(row => ({
+      ...row, recognizedDays: [...row.recognizedDays], unknownTokens: [...row.unknownTokens],
+    })),
     term: { ...source.term, unconfirmed: [...source.term.unconfirmed] },
     courses: source.courses.map((row) => ({
       ...row,
@@ -134,6 +138,7 @@ export async function buildTimetableReview(
           {
             theory: tr("text_84"),
             practical: tr("text_85"),
+            lab: pdfText.lab,
             online: tr("text_52"),
             "in-person": tr("text_53"),
           } as Record<string, string>
@@ -263,8 +268,11 @@ export async function buildTimetableReview(
     void unconfirmed;
     void courseKey;
     void identity;
+    const deliveryMode = data.deliveryMode;
+    if (!deliveryMode) throw new DataError("VALIDATION", tr("text_208", [session.key]));
     const input = {
       ...data,
+      deliveryMode,
       id: match.id,
       academicTermId: termMatch.id,
       courseId: course.id!,

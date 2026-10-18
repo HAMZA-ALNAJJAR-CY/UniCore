@@ -38,7 +38,7 @@ const ar = {
   saveError: "تعذر حفظ الفصل. راجع الحقول أو التخزين ثم أعد المحاولة.",
   saved: "تم حفظ الجدول. يمكنك الآن متابعة يومك من لوحة التحكم.",
   unsupported:
-    "استخراج الملفات والصور غير متاح بعد. يمكنك إدخال مسودة فارغة ومراجعتها الآن؛ دعم رفع الملفات واستخراجها مخطط للمرحلة B.",
+    "يمكن استخراج جداول PDF النصية محلياً ومراجعتها قبل التأكيد. الصور الممسوحة تتطلب إدخالاً يدوياً؛ التعرف الضوئي غير متاح.",
   draftHint:
     "المسودة تبدأ فارغة. أدخل معلوماتك فقط؛ لن يُحفظ شيء دون المراجعة والتأكيد.",
   startSetup: "إعداد الفصل يدوياً",
@@ -112,7 +112,7 @@ const en: typeof ar = {
   saveError: "Could not save the term. Review the fields or storage and retry.",
   saved: "Timetable saved. Continue your academic day from the Dashboard.",
   unsupported:
-    "File/image extraction is not available yet. You can enter and review an empty draft now; file ingestion and extraction are planned for Phase B.",
+    "Text PDF timetables can be extracted locally and reviewed before confirmation. Scanned images require manual entry; OCR is unavailable.",
   draftHint:
     "The draft starts empty. Enter only your own information; nothing is saved without review and confirmation.",
   startSetup: "Set up a term manually",

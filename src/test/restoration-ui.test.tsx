@@ -31,11 +31,11 @@ it.each(["en", "ar"] as const)("offers explicit removed-course recovery after ma
   act(() => setLanguage(language));
   const { store, term, course, session } = await seed();
   render(<MemoryRouter initialEntries={["/courses?term=" + term.id]}><Courses store={store} /></MemoryRouter>);
-  const card = await screen.findByRole("article", { name: course.name });
+  const card = await screen.findByRole("rowgroup", { name: course.name });
   fireEvent.click(within(card).getByRole("button", { name: t.removeCourse }));
   const confirmation = await screen.findByRole("region", { name: t.confirmDelete });
   fireEvent.click(within(confirmation).getByRole("button", { name: t.confirmDelete }));
-  await waitFor(() => expect(screen.queryByRole("article", { name: course.name })).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByRole("rowgroup", { name: course.name })).not.toBeInTheDocument());
   fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Removed courses" : "المقررات المحذوفة" }));
   const removed = await screen.findByRole("article", { name: course.name });
   expect(removed).toHaveTextContent(term.name);
@@ -223,7 +223,7 @@ it.each(["unmount", "store replacement"] as const)("does not apply late save com
     await screen.findByRole("alert");
     fireEvent.click(screen.getByRole("button", { name: t.retry }));
   } else mount();
-  await screen.findByRole("article", { name: course.name });
+  await screen.findByRole("rowgroup", { name: course.name });
   expect(screen.queryByText(r.restored)).not.toBeInTheDocument();
   expect(restore).toHaveBeenCalledOnce();
   if (other) {

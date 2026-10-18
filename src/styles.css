@@ -857,6 +857,18 @@ main:focus {
   border: 1px solid var(--border);
   border-radius: 10px;
 }
+.academic-table-scroll { position: relative; width: 100%; min-width: 0; overscroll-behavior-inline: contain; }
+.academic-table-scroll .academic-table { min-width: 1360px; table-layout: fixed; }
+.academic-table :is(th, td) { vertical-align: top; overflow-wrap: anywhere; }
+.academic-table th { color: var(--color-foreground); background: var(--color-surface); }
+.academic-table h2 { font-size: 1rem; margin: 0; }
+.academic-table tbody { scroll-margin-block: 24px; }
+.academic-table tbody:focus { outline: 2px solid var(--color-secondary); outline-offset: -2px; }
+.academic-table .table-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.academic-table :is(input, select) { width: 100%; min-width: 0; color: var(--color-foreground); background: var(--color-background); border: 1px solid var(--border); border-radius: 6px; padding: 8px; min-height: 44px; }
+.academic-table [data-uncertain="true"] { outline: 2px solid #d5b15f; outline-offset: 1px; }
+.academic-table .table-field { display: block; margin-bottom: 8px; }
+.pdf-upload input[type="file"] { display: block; max-width: 100%; margin-block: 16px; }
 .review-table-scroll table {
   width: 100%;
   min-width: 620px;

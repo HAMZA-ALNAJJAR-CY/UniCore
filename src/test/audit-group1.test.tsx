@@ -147,7 +147,7 @@ describe("Courses asynchronous Manage targets", () => {
     }
     expect(scroll).not.toHaveBeenCalled();
     await act(async () => pending.resolve(snapshot));
-    const target = await screen.findByRole("article", { name: courseB.name });
+    const target = await screen.findByRole("rowgroup", { name: courseB.name });
     expect(router.state.location.hash).toBe(hash);
     expect(router.state.location.search).toBe((kind === "absent" ? "?term=" : "?keep=value&term=") + b.id);
     expect(router.state.historyAction).toBe("REPLACE");
@@ -174,12 +174,12 @@ describe("Courses asynchronous Manage targets", () => {
       pending.resolve(snapshot);
       await navigation;
     });
-    const target = await screen.findByRole("article", { name: courseA.name });
+    const target = await screen.findByRole("rowgroup", { name: courseA.name });
     await waitFor(() => expect(target).toHaveFocus());
     expect(router.state.location.search).toBe("?term=" + a.id);
     expect(router.state.location.hash).toBe("#course-" + courseA.id);
     expect(scroll.mock.contexts).toEqual([target]);
-    expect(screen.queryByRole("article", { name: courseB.name })).not.toBeInTheDocument();
+    expect(screen.queryByRole("rowgroup", { name: courseB.name })).not.toBeInTheDocument();
     dispose();
   });
 
@@ -190,7 +190,7 @@ describe("Courses asynchronous Manage targets", () => {
     const { dispose } = mount(`/courses?term=${a.id}#course-${courseA.id}`);
     expect(scroll).not.toHaveBeenCalled();
     await act(async () => pending.resolve(snapshot));
-    const target = await screen.findByRole("article", { name: courseA.name });
+    const target = await screen.findByRole("rowgroup", { name: courseA.name });
     await waitFor(() => expect(target).toHaveFocus());
     expect(scroll.mock.contexts).toEqual([target]);
     fireEvent.click(screen.getByRole("button", { name: t.retry }));
@@ -208,7 +208,7 @@ describe("Courses asynchronous Manage targets", () => {
     fireEvent.click(link);
     expect(scroll).not.toHaveBeenCalled();
     await act(async () => pending.resolve(snapshot));
-    const target = await screen.findByRole("article", { name: courseA.name });
+    const target = await screen.findByRole("rowgroup", { name: courseA.name });
     await waitFor(() => expect(target).toHaveFocus());
     expect(router.state.location.hash).toBe("#course-" + courseA.id);
     expect(scroll.mock.contexts).toEqual([target]);
@@ -224,7 +224,7 @@ describe("Courses asynchronous Manage targets", () => {
       await store.courses.delete(removed.id, { expectedRevision: removed.revision });
     }
     const { dispose } = mount(`/courses?term=${a.id}#course-${targetId}`);
-    await screen.findByRole("article", { name: courseA.name });
+    await screen.findByRole("rowgroup", { name: courseA.name });
     expect(scroll).not.toHaveBeenCalled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: t.editCourse })).toBeEnabled();
@@ -237,23 +237,23 @@ describe("Courses asynchronous Manage targets", () => {
     vi.spyOn(store, "getTimetable").mockImplementationOnce(() => pending.promise);
     const { router, dispose } = mount(`/courses?term=${a.id}#course-${courseA.id}`);
     await act(async () => { await router.navigate(`/courses?term=${b.id}#course-${courseB.id}`); });
-    const target = await screen.findByRole("article", { name: courseB.name });
+    const target = await screen.findByRole("rowgroup", { name: courseB.name });
     await waitFor(() => expect(target).toHaveFocus());
     await act(async () => pending.resolve(snapshot));
     expect(scroll.mock.contexts).toEqual([target]);
     expect(target).toHaveFocus();
-    expect(screen.queryByRole("article", { name: courseA.name })).not.toBeInTheDocument();
+    expect(screen.queryByRole("rowgroup", { name: courseA.name })).not.toBeInTheDocument();
     dispose();
   });
 
   it("reveals a hash target when navigation starts from the weekly view", async () => {
     const { a, courseA } = await records();
     const { router, dispose } = mount("/courses?term=" + a.id);
-    await screen.findByRole("article", { name: courseA.name });
+    await screen.findByRole("rowgroup", { name: courseA.name });
     fireEvent.click(screen.getByRole("button", { name: t.weekView }));
-    expect(screen.queryByRole("article", { name: courseA.name })).not.toBeInTheDocument();
+    expect(screen.queryByRole("rowgroup", { name: courseA.name })).not.toBeInTheDocument();
     await act(async () => { await router.navigate(`/courses?term=${a.id}#course-${courseA.id}`); });
-    const target = await screen.findByRole("article", { name: courseA.name });
+    const target = await screen.findByRole("rowgroup", { name: courseA.name });
     await waitFor(() => expect(target).toHaveFocus());
     expect(scroll.mock.contexts).toEqual([target]);
     dispose();

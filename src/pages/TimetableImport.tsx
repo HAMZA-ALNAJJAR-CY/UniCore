@@ -2,6 +2,9 @@ import { tr, dynamic, useLanguage, translateMessage } from "../i18n/locale";
 import { useEffect, useId, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { timetableText } from "../features/timetable/messages";
+import { pdfText } from "../i18n/pdf";
+import { PdfUpload } from "../components/PdfUpload";
+import { PdfDraftTable, PdfWeekdayReview } from "../components/PdfDraftTable";
 import { introductionText, translateIntroductionMessage } from "../i18n/introduction";
 import { CheckCircle2, FileCheck2, Plus, Trash2 } from "lucide-react";
 import {
@@ -164,19 +167,19 @@ function WeeklySummary({ draft }: { draft: TimetableDraft }) {
                   (course) => course.key === session.courseKey,
                 )?.name ?? tr("text_50")}
               </td>
-              <td>{DAYS[session.dayOfWeek]}</td>
+              <td>{DAYS[session.dayOfWeek] || pdfText.unknown}</td>
               <td>
                 <bdi dir="ltr">
                   {session.startTime}–{session.endTime}
                 </bdi>
               </td>
               <td>
-                <bdi dir="ltr">{session.room ?? tr("text_51")}</bdi>
+                <bdi dir="ltr">{session.room ?? session.location ?? tr("text_51")}</bdi>
               </td>
               <td>
                 {session.deliveryMode === "online"
                   ? tr("text_52")
-                  : tr("text_53")}
+                  : session.deliveryMode === "in-person" ? tr("text_53") : pdfText.unknown}
               </td>
             </tr>
           ))}
@@ -281,7 +284,11 @@ function TimetableReviewForm({
   const [keep, setKeep] = useState<string[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [success, setSuccess] = useState("");
-  const [identityOptions, setIdentityOptions] = useState<Awaited<ReturnType<typeof store.getTimetable>> | null>(null);
+  const [pdfPreview, setPdfPreview] = useState(false);
+  const [hasPdfDraft, setHasPdfDraft] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [loadedIdentityOptions, setIdentityOptions] = useState<Awaited<ReturnType<typeof store.getTimetable>> | null>(null);
+  const identityOptions = loadedIdentityOptions?.termId === draft.term.id ? loadedIdentityOptions : null;
   const stepHeading = useRef<HTMLHeadingElement>(null);
   const stats = analyzeDraft(draft);
   function savedCourseId(key: string) {
@@ -317,11 +324,13 @@ function TimetableReviewForm({
   }, [store]);
   useEffect(() => {
     let active = true;
-    if (draft.term.id) store.getTimetable(draft.term.id).then(value => {
+    // Review may reserve a UUID for an unsaved term. It is not a persisted
+    // identity-option source until it appears in the saved-term list.
+    if (draft.term.id && terms.some(term => term.id === draft.term.id)) store.getTimetable(draft.term.id).then(value => {
       if (active) setIdentityOptions(value);
     }).catch(() => { if (active) { setIdentityOptions(null); setError(introductionText.resolveIdentity); } });
     return () => { active = false; };
-  }, [store, draft.term.id]);
+  }, [store, draft.term.id, terms]);
   useEffect(() => {
     stepHeading.current?.focus();
   }, [step]);
@@ -422,13 +431,17 @@ function TimetableReviewForm({
         <p className="eyebrow">{tr("text_58")}</p>
         <h1>{tr("text_2")}</h1>
         <p>{tr("text_59")}</p>
-        <p className="review-note">{introductionText.unsupported}</p>
+        <p className="review-note">{pdfText.local}</p>
         {initialDraft?.term.id && <p className="review-note">{introductionText.resumedSource}</p>}
         {!!draft.omittedDeletedRows?.length && <section className="review-note" aria-label={introductionText.omittedDeletedRows}>
           <p>{introductionText.omittedDeletedRows}</p>
           <ul>{draft.omittedDeletedRows.map(row => <li key={`${row.entity}:${row.id}`}>{row.label}</li>)}</ul>
         </section>}
       </header>
+      <PdfUpload draft={draft} onPendingChange={setParsing} disabled={!ready || blocked || busy || parsing} onParsed={parsed => {
+        edit(() => parsed); setHasPdfDraft(true); setPdfPreview(true); setStep(0);
+      }} />
+      <Link className="button-link" to="/courses" onClick={event => { if (busy) event.preventDefault(); }}>{pdfText.cancelDraft}</Link>
       <ol className="review-steps" aria-label={tr("text_60")}>
         {STEPS.map((label, index) => (
           <li key={label} aria-current={step === index ? "step" : undefined}>
@@ -469,7 +482,7 @@ function TimetableReviewForm({
           </h2>
           <fieldset
             className="review-body"
-            disabled={!ready || blocked || busy}
+            disabled={!ready || blocked || busy || parsing}
           >
             {step === 0 && (
               <section className="review-card">
@@ -569,6 +582,12 @@ function TimetableReviewForm({
                             ...current,
                             term: {
                               ...current.term,
+                              ...(() => {
+                                const selected = terms.find(term => term.id === event.target.value);
+                                if (!selected) return {};
+                                const { name, academicYear, semester, startDate, endDate, college, program } = selected;
+                                return { name, academicYear, semester, startDate, endDate, college, program };
+                              })(),
                               id: event.target.value || undefined,
                             },
                           }))
@@ -589,6 +608,9 @@ function TimetableReviewForm({
             )}
             {step === 1 && (
               <>
+                {pdfPreview && <PdfDraftTable draft={draft} onChange={next => edit(() => next)} />}
+                {hasPdfDraft && !pdfPreview && <button onClick={() => setPdfPreview(true)}>{pdfText.preview}</button>}
+                <div hidden={pdfPreview}>
                 <p className="review-note">{tr("text_74")}</p>
                 {draft.courses.map((course, index) => (
                   <section
@@ -650,15 +672,17 @@ function TimetableReviewForm({
                                 event.target.value === ""
                                   ? null
                                   : (event.target.value as
-                                      "theory" | "practical"),
+                                      "theory" | "practical" | "lab"),
                             })
                           }
                         >
                           <option value="">{tr("text_83")}</option>
                           <option value="theory">{tr("text_84")}</option>
                           <option value="practical">{tr("text_85")}</option>
+                          <option value="lab">{pdfText.lab}</option>
                         </select>
                       </label>
+                      <TextField label={pdfText.registrationDate} value={course.registrationDate ?? ""} ltr onChange={registrationDate => courseEdit(course.key, { registrationDate: nullable(registrationDate) })} />
                     </div>
                     <UnknownFields
                       fields={[
@@ -683,6 +707,9 @@ function TimetableReviewForm({
                             (row) => row.key !== course.key,
                           ),
                           sessions: current.sessions.filter(
+                            (row) => row.courseKey !== course.key,
+                          ),
+                          weekdayReviews: current.weekdayReviews?.filter(
                             (row) => row.courseKey !== course.key,
                           ),
                         }))
@@ -719,11 +746,14 @@ function TimetableReviewForm({
                   <Plus size={18} aria-hidden="true" />
                   {tr("text_87")}
                 </button>
+                </div>
+                {pdfPreview && <button onClick={() => setPdfPreview(false)}>{pdfText.identities}</button>}
               </>
             )}
             {step === 2 && (
               <>
                 <p className="review-note">{tr("text_88")}</p>
+                <PdfWeekdayReview draft={draft} onChange={next => edit(() => next)} />
                 {draft.sessions.map((session, index) => (
                   <section
                     className="review-card session-card"
@@ -739,7 +769,7 @@ function TimetableReviewForm({
                       <span className="badge">
                         {session.deliveryMode === "online"
                           ? tr("text_52")
-                          : tr("text_53")}
+                          : session.deliveryMode === "in-person" ? tr("text_53") : pdfText.unknown}
                       </span>
                     </div>
                     <div className="review-fields">
@@ -772,6 +802,7 @@ function TimetableReviewForm({
                             })
                           }
                         >
+                          <option value={0}>{pdfText.unknown}</option>
                           {DAYS.slice(1).map((day, i) => (
                             <option key={day} value={i + 1}>
                               {day}
@@ -815,6 +846,7 @@ function TimetableReviewForm({
                           }
                         >
                           <option value="in-person">{tr("text_53")}</option>
+                          <option value="">{pdfText.unknown}</option>
                           <option value="online">{tr("text_52")}</option>
                         </select>
                       </label>
@@ -880,6 +912,7 @@ function TimetableReviewForm({
             )}
             {(step === 3 || step === 4) && (
               <>
+                <PdfWeekdayReview draft={draft} />
                 <section className="review-stats">
                   <div>
                     <strong>{stats.courseCount}</strong>
@@ -973,6 +1006,12 @@ function TimetableReviewForm({
                     )}
                   </>
                 )}
+                {plan && <section className="review-findings" aria-label={pdfText.summary}>
+                  <h3>{pdfText.summary}</h3>
+                  <p>{pdfText.inserted}: {1 + draft.courses.length + draft.sessions.length - plan.existingKeys.length}</p>
+                  <p>{pdfText.retained}: {plan.existingKeys.length} · {pdfText.skipped}: {plan.existingKeys.length}</p>
+                  <p>{pdfText.rejected}: {stats.errors.length}</p>
+                </section>}
                 {step === 4 && (
                   <section className="review-card">
                     <FileCheck2 size={28} aria-hidden="true" />
@@ -1000,7 +1039,7 @@ function TimetableReviewForm({
           </fieldset>
           <nav className="review-actions" aria-label={tr("text_123")}>
             <button
-              disabled={step === 0 || busy}
+              disabled={step === 0 || busy || parsing}
               onClick={() => {
                 setStep(step - 1);
                 setPlan(step - 1 < 3 ? null : plan);
@@ -1012,7 +1051,7 @@ function TimetableReviewForm({
             </button>
             {step < 4 && (
               <button
-                disabled={!ready || blocked || busy}
+                disabled={!ready || blocked || busy || parsing}
                 onClick={() => void next()}
               >
                 {busy ? tr("text_125") : tr("text_126")}

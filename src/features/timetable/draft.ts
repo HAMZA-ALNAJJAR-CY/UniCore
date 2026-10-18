@@ -1,5 +1,6 @@
 import { tr, dynamic } from "../../i18n/locale";
 import type { TimetableDraft } from "../../data/timetable-types";
+import { pdfText } from "../../i18n/pdf";
 
 export const DAYS = dynamic(() => [
   "",
@@ -31,6 +32,7 @@ export const FIELD_LABELS: Record<string, string> = dynamic(() => ({
   deliveryMode: tr("text_96"),
   notes: tr("text_191"),
   location: tr("text_192"),
+  registrationDate: pdfText.registrationDate,
 }));
 
 /** Empty editable draft. No academic identities or personal data are seeded. */
@@ -84,6 +86,9 @@ export function analyzeDraft(draft: TimetableDraft) {
   )
     errors.push(tr("text_196"));
   if (!draft.courses.length) errors.push(tr("text_197"));
+  for (const review of draft.weekdayReviews ?? []) {
+    if (review.acknowledged !== true) errors.push(`${pdfText.weekdayBlocked} (${review.sourceText})`);
+  }
   const keys = new Set<string>(),
     codes = new Set<string>(),
     sessionKeys = new Set<string>(),
@@ -107,9 +112,12 @@ export function analyzeDraft(draft: TimetableDraft) {
     if (
       course.activityType != null &&
       course.activityType !== "theory" &&
-      course.activityType !== "practical"
+      course.activityType !== "practical" &&
+      course.activityType !== "lab"
     )
       errors.push(tr("text_202", [course.name]));
+    if (course.registrationDate && !existsDate(course.registrationDate))
+      errors.push(tr("text_194", [pdfText.registrationDate]));
     if (!course.section) missing.push(tr("text_203", [course.name]));
     course.unconfirmed.forEach((field) =>
       unconfirmed.push(

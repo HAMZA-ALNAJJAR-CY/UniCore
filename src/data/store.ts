@@ -426,7 +426,7 @@ export class AcademicStore {
           dayOfWeek: row.dayOfWeek,
           startTime: row.startTime,
           endTime: row.endTime,
-          deliveryMode: row.deliveryMode,
+          deliveryMode: row.deliveryMode as Entities["scheduleSessions"]["deliveryMode"], // Error-reporting envelope only; review validates before any write.
         })),
       },
     );

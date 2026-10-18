@@ -1,0 +1,46 @@
+import { dynamic, getLanguage } from "./locale";
+
+const en = {
+  import: "Import timetable PDF", choose: "Choose a text PDF", cancel: "Cancel PDF reading",
+  reading: "Reading PDF locally…", local: "Text PDFs are processed on this device. Nothing is saved until review and confirmation. Scanned images require manual entry; OCR is unavailable.",
+  invalid: "Choose a valid PDF of up to 10 MiB (maximum 20 pages).", malformed: "This PDF could not be read safely. Try another PDF or enter the timetable manually.",
+  scanned: "Not enough readable table text. This may be a scanned PDF or an unsupported layout. Enter the timetable manually; no rows were invented.",
+  limit: "This document exceeds the local extraction limit. Use a smaller timetable PDF or manual entry.",
+  extracted: "PDF rows are an unsaved draft. Check every field, especially highlighted cells. Missing values are not inferred. Excluding rows here never deletes saved records.",
+  replace: "Replace the current unsaved rows with this PDF? Saved academic records and mappings will remain unchanged.",
+  registrationDate: "Registration date", lab: "Lab", table: "University timetable", preview: "Editable timetable preview",
+  actions: "Actions", addCourse: "Add draft course", addSession: "Add draft meeting", removeCourse: "Exclude draft course and meetings", removeSession: "Exclude draft meeting",
+  identities: "Identity choices and detailed course editors",
+  uncertain: "Needs review", confirmField: "Mark fields in this row reviewed", noMeetings: "No weekly meetings", unknown: "Not provided",
+  weekdayTitle: "Incomplete weekday interpretation", weekdayOriginal: "Original day text", weekdayUnknown: "Unrecognized weekday tokens",
+  weekdayHelp: "Only recognized days became draft meetings. Check the original text, correct the days or add any missing meetings in the weekly sessions step. No meeting is created for an unknown token. To continue, explicitly acknowledge that only the displayed meetings will be saved. Use Previous to return to editing from final review.",
+  weekdayAck: "I checked the original day text and corrected or added any missing meetings; save only the displayed meetings",
+  weekdayBlocked: "Review and explicitly acknowledge the incomplete weekday interpretation before saving",
+  weekdayReviewed: "Weekday interpretation explicitly reviewed",
+  summary: "Proposed save outcomes", inserted: "To insert", retained: "Existing records retained", skipped: "Existing identities skipped", rejected: "Invalid rows block saving",
+  code: "Course code", name: "Course name", activity: "Activity", hours: "Credit hours", section: "Section", day: "Meeting day", time: "Start / end", instructor: "Instructor", room: "Room / online location",
+  cancelDraft: "Cancel import", sourceHint: "For re-import, open the saved source first, then choose its PDF. A new source is an explicit separate import; file names never select identities.",
+};
+const ar: typeof en = {
+  import: "رفع الجدول PDF", choose: "اختر ملف PDF نصياً", cancel: "إلغاء قراءة PDF",
+  reading: "جارٍ قراءة PDF محلياً…", local: "تُعالج ملفات PDF النصية على هذا الجهاز. لا يُحفظ شيء قبل المراجعة والتأكيد. الصور الممسوحة تتطلب إدخالاً يدوياً؛ التعرف الضوئي غير متاح.",
+  invalid: "اختر ملف PDF صالحاً حتى 10 ميبيبايت (20 صفحة كحد أقصى).", malformed: "تعذرت قراءة PDF بأمان. جرّب ملفاً آخر أو أدخل الجدول يدوياً.",
+  scanned: "لا يوجد نص جدول كافٍ للقراءة. قد يكون الملف صورة ممسوحة أو بتنسيق غير مدعوم. أدخل الجدول يدوياً؛ لم تُختلق أي صفوف.",
+  limit: "يتجاوز المستند حد الاستخراج المحلي. استخدم ملف جدول أصغر أو الإدخال اليدوي.",
+  extracted: "الصفوف المستخرجة مسودة غير محفوظة. راجع كل حقل وخاصة الخلايا المميزة. لا تُستنتج القيم المفقودة. استبعاد الصفوف هنا لا يحذف سجلات محفوظة.",
+  replace: "هل تريد استبدال الصفوف غير المحفوظة بهذا الملف؟ لن تتغير السجلات الأكاديمية أو روابط الاستيراد المحفوظة.",
+  registrationDate: "تاريخ التسجيل", lab: "مختبر", table: "الجدول الجامعي", preview: "معاينة جدول قابلة للتعديل",
+  actions: "الإجراءات", addCourse: "إضافة مقرر للمسودة", addSession: "إضافة جلسة للمسودة", removeCourse: "استبعاد مقرر المسودة وجلساته", removeSession: "استبعاد جلسة المسودة",
+  identities: "خيارات الهوية ومحررات المقررات التفصيلية",
+  uncertain: "بحاجة إلى مراجعة", confirmField: "تأكيد مراجعة حقول هذا الصف", noMeetings: "لا توجد جلسات أسبوعية", unknown: "غير مذكور",
+  weekdayTitle: "تفسير أيام غير مكتمل", weekdayOriginal: "نص الأيام الأصلي", weekdayUnknown: "رموز أيام غير معروفة",
+  weekdayHelp: "أُنشئت جلسات مسودة للأيام المعروفة فقط. راجع النص الأصلي وصحح الأيام أو أضف الجلسات الناقصة في خطوة الجلسات الأسبوعية. لا تُنشأ جلسة لرمز مجهول. للمتابعة، أكد صراحةً أن الجلسات المعروضة فقط ستُحفظ. استخدم السابق للعودة إلى التحرير من المراجعة النهائية.",
+  weekdayAck: "راجعت نص الأيام الأصلي وصححت أو أضفت الجلسات الناقصة؛ احفظ الجلسات المعروضة فقط",
+  weekdayBlocked: "راجع تفسير الأيام غير المكتمل وأكد مراجعته صراحةً قبل الحفظ",
+  weekdayReviewed: "تم تأكيد مراجعة تفسير الأيام صراحةً",
+  summary: "نتائج الحفظ المقترحة", inserted: "للإضافة", retained: "السجلات الحالية المحتفظ بها", skipped: "الهويات الحالية المتخطاة", rejected: "الصفوف غير الصالحة تمنع الحفظ",
+  code: "رمز المقرر", name: "اسم المقرر", activity: "النشاط", hours: "الساعات المعتمدة", section: "الشعبة", day: "يوم الجلسة", time: "البداية / النهاية", instructor: "المدرس", room: "القاعة / الموقع الإلكتروني",
+  cancelDraft: "إلغاء الاستيراد", sourceHint: "لإعادة الاستيراد، افتح المصدر المحفوظ أولاً ثم اختر ملفه. المصدر الجديد استيراد مستقل صريح؛ أسماء الملفات لا تحدد الهويات.",
+};
+export const pdfText = dynamic(() => getLanguage() === "ar" ? ar : en);
+export type PdfFailure = "invalid" | "malformed" | "scanned" | "limit";

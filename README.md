@@ -34,7 +34,7 @@ Developers use `createAcademicStore()` from `src/data`, never direct Dexie table
 
 ## Implemented in Phase 1C
 
-- `/courses` now reads saved terms/courses/sessions and offers course cards or a responsive weekly agenda. Each session retains its own day/time/room/mode; no misleading combined time ranges.
+- `/courses` reads saved terms/courses/sessions and offers a semantic timetable table or a responsive weekly agenda. Each session retains its own day/time/room/mode; no misleading combined time ranges.
 - Inline course and session editors with save/cancel, nullable instructors, additions, validation, revision checks and persistent UUIDs. Management uses only stored records, without personal timetable assumptions.
 - Overlap warnings for saved schedules and pending session edits; acknowledgment is rechecked transactionally against current overlap IDs/revisions. Adjacent sessions are not overlaps. Identical weekly sessions are rejected.
 - Confirmed removal preserves tombstones and source mappings. Course removal can include only reviewed weekly sessions; lectures/materials block it. Session removal blocks linked historical lectures. No history or attachments cascade from management controls.
@@ -61,7 +61,7 @@ First-run introduction uses actual persisted record presence across all stores, 
 
 `/courses/setup` creates a real user-entered term through the repository and opens that exact term in Courses, making manual course entry usable without import. Empty dashboard/calendar/course views provide setup actions. Confirmed import returns to the Dashboard with feedback and the imported term selected. `/settings` is deliberately limited to language/local-mode information and replaying the introduction; profiles/accounts remain later work.
 
-`/courses/import` discovers saved sources from existing mappings. Choose a source to reopen its current saved values with original source/row identities, or explicitly start a new source. The source query survives reload. Unmatched rows alongside existing history require an explicit saved-record or new-row decision; matching never uses fuzzy similarity. Differences still require keep-existing approval. Missing/deleted mapped targets block reopening rather than resurrecting history. File ingestion, parsing and OCR remain Phase B work. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+`/courses/import` discovers saved sources from existing mappings. Choose a source to reopen its current saved values with original source/row identities, or explicitly start a new source. The source query survives reload. Unmatched rows alongside existing history require an explicit saved-record or new-row decision; matching never uses fuzzy similarity. Differences still require keep-existing approval. Missing/corrupt targets block recovery; valid course/session tombstones are disclosed and omitted from editing (F-02), never resurrected. Local text-PDF ingestion is now available in B1; OCR remains unimplemented. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 Open course/session editors stay bound to their opening term. Save or cancel before switching terms; browser Back/Forward offers keep/discard choices. Discard is unavailable during a write; completion stays on the original page and navigation can be attempted again. Term selections and course links retain term query context. Refreshing Dashboard/Calendar does not add history entries. Failed term reads hide old-term data and can be retried. Manual term creation shares pending/failed input across route mounts of the same repository, prevents duplicate submissions, and never redirects a departed instance. Returning after completion offers explicit continuation. This protection lasts for the current document, not across reloads/tabs. Leaving does not cancel an already running transaction. Introduction replay preserves completion and tour steps announce progress/focus. Import success state is consumed once.
 
@@ -96,3 +96,11 @@ No environment variables or credentials are required. Keep `.env` files untracke
 Deploy `dist/` after `npm run build`. This application uses browser history routing: configure the host to serve `index.html` for unknown application paths, including direct visits to `/courses`. Hosting setup is not included in Phase 0. Vite development/preview servers provide local SPA fallback. Production assets are bundled locally; no external fonts or runtime API calls are required.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md), [DATABASE.md](DATABASE.md), [SECURITY.md](SECURITY.md), and [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md).
+
+## Phase B1 — local PDF timetable review (awaiting independent review)
+
+Courses displays a scroll-contained table with code/name/activity/credits/section, each meeting's day/time/location, instructor, optional registration date and existing management actions. Arabic/English and RTL/LTR are supported. Unknown values are never filled from unrelated metadata.
+
+Choose **Import timetable PDF**, open an existing source for re-import or explicitly start a new one, then choose a text PDF up to 10 MiB/20 pages. Review the term and editable table, correct highlighted/incomplete cells, add/exclude draft rows and review duplicates/overlaps. Detailed identity choices remain available before final review. Only explicit confirmation writes through the original transactional importer. Saved edits are retained, never automatically replaced.
+
+PDFs are processed locally by dynamically loaded PDF.js; raw files and student header identifiers are not persisted. Recognizable text tables are supported; image-only scans, unsupported layouts and ambiguous fields require manual entry/correction. No OCR, cloud service, raw-file retention or automatic restoration. Registration date is optional ISO YYYY-MM-DD; no schema upgrade or fabricated backfill. Node minimum is 22.13 for PDF.js (Node 24 is used for validation). See B1_DESIGN.md and ARCHITECTURE.md for contracts and limits.

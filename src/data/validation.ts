@@ -21,6 +21,7 @@ const fields: Record<EntityName, readonly string[]> = {
     "registeredHours",
     "description",
     "activityType",
+    "registrationDate",
   ],
   scheduleSessions: [
     "academicTermId",
@@ -137,9 +138,11 @@ export function validate<K extends EntityName>(kind: K, record: Entities[K]) {
       if (
         value.activityType != null &&
         value.activityType !== "theory" &&
-        value.activityType !== "practical"
+        value.activityType !== "practical" &&
+        value.activityType !== "lab"
       )
         invalid("Invalid activityType.");
+      if (value.registrationDate != null) date(value.registrationDate);
       uuid(value.academicTermId);
       text(value.code, "code");
       text(value.name, "name");

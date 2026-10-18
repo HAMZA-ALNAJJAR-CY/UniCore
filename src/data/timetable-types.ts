@@ -14,13 +14,23 @@ export type DraftTerm = DraftRow<AcademicTerm>;
 export type DraftCourse = Omit<DraftRow<Course>, "academicTermId">;
 export type DraftSession = Omit<
   DraftRow<ScheduleSession>,
-  "academicTermId" | "courseId"
-> & { courseKey: string };
+  "academicTermId" | "courseId" | "deliveryMode"
+> & { courseKey: string; deliveryMode: ScheduleSession["deliveryMode"] | "" };
 export interface TimetableDraft {
   sourceId: string;
   term: DraftTerm;
   courses: DraftCourse[];
   sessions: DraftSession[];
+  /** PDF review only, never persisted as academic rows or import mappings.
+   * One notice per uncertain source meeting; unknown tokens invent no sessions. */
+  weekdayReviews?: {
+    key: string;
+    courseKey: string;
+    sourceText: string;
+    recognizedDays: number[];
+    unknownTokens: string[];
+    acknowledged: boolean;
+  }[];
   /** Recovery notice only: validated tombstones omitted from the editable draft.
    * Never persisted or interpreted as a request to delete/restore a record. */
   omittedDeletedRows?: {

@@ -264,7 +264,7 @@ describe("Phase A first-run paths", () => {
     );
     expect(screen.getByLabelText("Term name")).toHaveValue("");
     expect(
-      screen.getByText(/File\/image extraction is not available/),
+      screen.getByRole("region", { name: "Import timetable PDF" }),
     ).toBeInTheDocument();
     expect(source.reviewTimetable).not.toHaveBeenCalled();
     expect(source.saveTimetable).not.toHaveBeenCalled();

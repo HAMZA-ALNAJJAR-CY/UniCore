@@ -24,7 +24,9 @@ export interface Course extends RecordMetadata {
   section?: string | null;
   registeredHours: number;
   description?: string | null;
-  activityType?: "theory" | "practical" | null;
+  activityType?: "theory" | "practical" | "lab" | null;
+  /** University registration date, if supplied; never inferred from createdAt. */
+  registrationDate?: string | null;
 }
 
 export interface ScheduleSession extends RecordMetadata {

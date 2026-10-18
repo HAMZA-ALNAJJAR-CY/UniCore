@@ -59,7 +59,7 @@ async function mount() {
       <Courses store={store} />
     </MemoryRouter>,
   );
-  await screen.findByRole("article", { name: course.name });
+  await screen.findByRole("rowgroup", { name: course.name });
   return result;
 }
 const click = (label: string) =>
@@ -72,7 +72,7 @@ const fill = (label: string, value: string) =>
 describe("timetable management interface with real repositories", () => {
   it("loads saved sessions under the correct course and switches to daily agenda", async () => {
     await mount();
-    const card = screen.getByRole("article", { name: course.name });
+    const card = screen.getByRole("rowgroup", { name: course.name });
     expect(within(card).getByText("09:00–10:00")).toHaveAttribute("dir", "ltr");
     expect(within(card).getByText("الأحد")).toBeInTheDocument();
     click(t.weekView);
@@ -135,7 +135,7 @@ describe("timetable management interface with real repositories", () => {
     fill(t.code, "NEW");
     fill(t.hours, "2");
     click(t.save);
-    const card = await screen.findByRole("article", { name: "مقرر جديد" });
+    const card = await screen.findByRole("rowgroup", { name: "مقرر جديد" });
     fireEvent.click(within(card).getByRole("button", { name: t.addSession }));
     fill(t.start, "10:00");
     fill(t.end, "11:00");
@@ -143,7 +143,7 @@ describe("timetable management interface with real repositories", () => {
     click(t.save);
     await waitFor(() =>
       expect(
-        within(screen.getByRole("article", { name: "مقرر جديد" })).getByText(
+        within(screen.getByRole("rowgroup", { name: "مقرر جديد" })).getByText(
           "10:00–11:00",
         ),
       ).toBeInTheDocument(),
@@ -220,7 +220,7 @@ describe("timetable management interface with real repositories", () => {
     );
     await screen.findByText(t.unavailable);
     click(t.retry);
-    await screen.findByRole("article", { name: course.name });
+    await screen.findByRole("rowgroup", { name: course.name });
   });
 });
 async function mountWithChangedName() {
@@ -229,5 +229,5 @@ async function mountWithChangedName() {
       <Courses store={store} />
     </MemoryRouter>,
   );
-  await screen.findByRole("article", { name: "تصحيح المستخدم" });
+  await screen.findByRole("rowgroup", { name: "تصحيح المستخدم" });
 }

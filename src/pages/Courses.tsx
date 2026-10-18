@@ -1,5 +1,7 @@
 import { translateMessage, useLanguage } from "../i18n/locale";
 import { restorationText } from "../i18n/restoration";
+import { TimetableTable } from "../components/TimetableTable";
+import { pdfText } from "../i18n/pdf";
 import { RemovedCourses } from "../components/RemovedCourses";
 import { useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, UNSAFE_DataRouterContext, useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -105,6 +107,7 @@ function CourseEditor({
   const [section, setSection] = useState(course?.section ?? "");
   const [hours, setHours] = useState(String(course?.registeredHours ?? ""));
   const [activity, setActivity] = useState(course?.activityType ?? "");
+  const [registrationDate, setRegistrationDate] = useState(course?.registrationDate ?? "");
   const [error, setError] = useState("");
   return (
     <form
@@ -129,7 +132,8 @@ function CourseEditor({
           section: nullable(section),
           registeredHours: Number(hours),
           activityType:
-            activity === "theory" || activity === "practical" ? activity : null,
+            activity === "theory" || activity === "practical" || activity === "lab" ? activity : null,
+          registrationDate: nullable(registrationDate),
         });
       }}
     >
@@ -145,6 +149,7 @@ function CourseEditor({
             value={instructor}
             onChange={setInstructor}
           />
+          <Field label={pdfText.registrationDate} value={registrationDate} onChange={setRegistrationDate} ltr />
           <Field label={t.section} value={section} onChange={setSection} ltr />
           <Field
             label={t.hours}
@@ -163,6 +168,7 @@ function CourseEditor({
               <option value="">{t.unknown}</option>
               <option value="theory">{t.theory}</option>
               <option value="practical">{t.practical}</option>
+              <option value="lab">{pdfText.lab}</option>
             </select>
           </label>
         </div>
@@ -634,6 +640,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
         <Link className="button-link" to="/courses/import">
           {t.import}
         </Link>
+        <Link className="button-link" to="/courses/import?pdf=1">{pdfText.import}</Link>
         <Link className="button-link" to="/courses/setup">
           {introductionText.startSetup}
         </Link>
@@ -826,63 +833,17 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
           {view === "courses" ? (
             <div className="managed-courses">
               {!courses.length && <p className="review-card">{t.empty}</p>}
-              {courses.map((course) => (
-                <article
-                  id={"course-" + course.id}
-                  key={course.id}
-                  className="review-card managed-course"
-                  aria-label={course.name}
-                  tabIndex={-1}
-                >
-                  <header>
-                    <div>
-                      <h2>{course.name}</h2>
-                      <bdi dir="ltr" className="course-code">
-                        {course.code}
-                      </bdi>
-                    </div>
-                    <div className="management-actions">
-                      <button
-                        disabled={locked}
-                        onClick={() => begin({ kind: "course", course })}
-                      >
-                        {t.editCourse}
-                      </button>
-                      <button
-                        className="remove-draft"
-                        disabled={locked}
-                        onClick={() => void preview("course", course)}
-                      >
-                        {t.removeCourse}
-                      </button>
-                    </div>
-                  </header>
-                  <p className="course-details">
-                    {course.instructor || t.unknown} ·{" "}
-                    {t.sectionLabel(course.section || t.unknown)} ·{" "}
-                    {course.activityType === "theory"
-                      ? t.theory
-                      : course.activityType === "practical"
-                        ? t.practical
-                        : t.unknown}{" "}
-                    · {t.creditLabel(course.registeredHours)}
-                  </p>
-                  <ul className="managed-sessions">
-                    {sessions
-                      .filter((row) => row.courseId === course.id)
-                      .map((row) => renderSession(row))}
-                  </ul>
-                  {!sessions.some((row) => row.courseId === course.id) && (
-                    <p className="review-note">{t.noSessions}</p>
-                  )}
-                  <button
-                    disabled={locked}
-                    onClick={() => begin({ kind: "session", course })}
-                  >
-                    {t.addSession}
-                  </button>
-                </article>
-              ))}
+              <TimetableTable courses={courses} sessions={sessions}
+                courseActions={course => <>
+                  <button disabled={locked} onClick={() => begin({ kind: "course", course })}>{t.editCourse}</button>
+                  <button className="remove-draft" disabled={locked} onClick={() => void preview("course", course)}>{t.removeCourse}</button>
+                  <button disabled={locked} onClick={() => begin({ kind: "session", course })}>{t.addSession}</button>
+                </>}
+                sessionActions={(course, session) => <>
+                  <button disabled={locked} onClick={() => begin({ kind: "session", course, session })}>{t.editSession}</button>
+                  <button className="remove-draft" disabled={locked} onClick={() => void preview("session", session)}>{t.removeSession}</button>
+                </>}
+              />
             </div>
           ) : (
             <div className="weekly-agenda">
