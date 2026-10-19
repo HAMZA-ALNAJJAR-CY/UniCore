@@ -14,7 +14,9 @@ export async function extractTimetablePdf(file: File, base: TimetableDraft, sign
   const [pdfjs, worker] = await Promise.all([import("pdfjs-dist/legacy/build/pdf.mjs"), import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url")]);
   abort();
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
-  const task = pdfjs.getDocument({data:bytes,disableFontFace:true,useSystemFonts:false,stopAtErrors:true});
+  // Text extraction never invokes document actions or the viewer's scripting
+  // sandbox. Disable worker resource fetching; no remote asset URLs are supplied.
+  const task = pdfjs.getDocument({data:bytes,disableFontFace:true,useSystemFonts:false,stopAtErrors:true,useWorkerFetch:false});
   const cancel = () => { void task.destroy().catch(() => {}); };
   signal.addEventListener("abort",cancel,{once:true});
   try {

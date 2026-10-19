@@ -21,6 +21,49 @@ const base=()=>({...emptyDraft(),term:{key:"term",name:"Synthetic term",academic
 const confirm=(r:TimetableReview)=>({confirmed:true,keepExistingKeys:r.differences.map(d=>d.key)});
 async function extract(options={}) {return extractTimetablePdf(new File([syntheticTimetablePdf(options)],"synthetic.pdf",{type:"application/pdf"}),base(),new AbortController().signal);}
 
+it("keeps offset meeting baselines bound to their own course through real PDF extraction",async()=>{
+  const draft=await extract({offsetRows:true});
+  expect(draft.sessions.filter(s=>s.courseKey===draft.courses[0].key)).toEqual([
+    expect.objectContaining({dayOfWeek:7,startTime:"09:00",endTime:"10:00",room:"R-101"}),
+    expect.objectContaining({dayOfWeek:2,startTime:"09:00",endTime:"10:00",room:"R-101"}),
+  ]);
+  expect(draft.sessions.filter(s=>s.courseKey===draft.courses[1].key)).toEqual([expect.objectContaining({dayOfWeek:1,startTime:"12:00",endTime:"14:00",room:"online"})]);
+},20000);
+
+it("reads Arabic credit and lecturer columns separately from section and room in a real PDF",async()=>{
+  const draft=await extract({arabicHeaders:true});
+  expect(draft.courses[0]).toMatchObject({registeredHours:3,section:"2",instructor:"Synthetic Teacher"});
+  expect(draft.courses[1]).toMatchObject({registeredHours:1,section:"1",instructor:"Synthetic Instructor"});
+  expect(draft.sessions[0].room).toBe("R-101");
+});
+
+it("extracts underscore-separated times without swapping endpoints or swallowing unknown weekdays",async()=>{
+  const draft=await extract({underscoreTimes:true,weekdayText:"Sun Tue X"});
+  expect(draft.sessions[0]).toMatchObject({startTime:"09:00",endTime:"10:00"});
+  expect(draft.weekdayReviews![0].unknownTokens).toEqual(["X"]);
+  expect(analyzeDraft(draft).errors.length).toBeGreaterThan(0);
+});
+
+it.each(["Page 1 of 1","الصفحة 1 من1"])("excludes a page footer from the final course's academic fields: %s",async(pageFooter)=>{
+  const draft=await extract({pageFooter});
+  expect(draft.courses[1].section).toBe("1");
+  expect(draft.sessions.filter(s=>s.courseKey===draft.courses[1].key)).toHaveLength(1);
+});
+
+it("normalizes presentation forms but retains and flags reversed numeric title brackets for human review",async()=>{
+  const draft=await extract({arabic:true,arabicTitle:"ﻣﻘﺮﺭ ﺗﺠﺮﻳﺒﻲ )2("});
+  expect(draft.courses[0].name).toBe("مقرر تجريبي )2(");
+  expect(draft.courses[0].unconfirmed).toContain("name");
+});
+
+it("does not execute a PDF document's JavaScript open action",async()=>{
+  const globals=globalThis as typeof globalThis & {__unicorePdfScriptExecuted?:boolean};
+  delete globals.__unicorePdfScriptExecuted;
+  const draft=await extract({pdfScript:true});
+  expect(draft.courses).toHaveLength(2);
+  expect(globals.__unicorePdfScriptExecuted).toBeUndefined();
+});
+
 function dayCell(dayText:string, separate=true) {
   const text=(text:string,x:number,y:number):PdfTextItem=>({text,x,y,width:45,height:10,dir:"ltr"});
   return parseTimetablePages([{items:[
@@ -58,6 +101,13 @@ it("preserves original mixed text and every unknown token without inventing an e
   for(const row of [...draft.courses,...draft.sessions])row.unconfirmed=[];
   expect(analyzeDraft(draft).errors).not.toEqual([]);
   expect(dayCell("Mon constructor").weekdayReviews![0].unknownTokens).toEqual(["constructor"]);
+});
+
+it("preserves the original day-cell presentation forms while normalizing weekday recognition",()=>{
+  const sourceText="ﺡ ﺙ X";
+  const draft=dayCell(sourceText);
+  expect(draft.sessions.map(s=>s.dayOfWeek)).toEqual([7,2]);
+  expect(draft.weekdayReviews![0].sourceText).toBe(sourceText);
 });
 
 it("keeps entirely unknown days invalid even after acknowledgment, until a valid manual correction",async()=>{

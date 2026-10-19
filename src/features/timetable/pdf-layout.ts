@@ -11,10 +11,10 @@ const clean = (text: string) => text.normalize("NFKC").replace(/[\u064B-\u065F\u
 const digits = (text: string) => text.replace(/[٠-٩۰-۹]/g, c => String("٠١٢٣٤٥٦٧٨٩".indexOf(c) >= 0 ? "٠١٢٣٤٥٦٧٨٩".indexOf(c) : "۰۱۲۳۴۵۶۷۸۹".indexOf(c)));
 const aliases: Record<Column, string[]> = {
   code: ["course code", "course number", "رقم المقرر", "رمز المقرر"], name: ["course name", "اسم المقرر"],
-  activity: ["activity", "activity type", "النشاط", "نوع النشاط"], hours: ["credits", "credit hours", "الساعات", "س"],
+  activity: ["activity", "activity type", "النشاط", "نوع النشاط"], hours: ["credits", "credit hours", "الساعات", "عدد الساعات", "س"],
   section: ["section", "الشعبه"], time: ["time", "الوقت"], day: ["day", "days", "اليوم", "الايام"],
   start: ["start", "start time", "البدايه"], end: ["end", "end time", "النهايه"],
-  instructor: ["instructor", "instructor name", "اسم المدرس", "المدرس"], room: ["room", "location", "القاعة", "الموقع"],
+  instructor: ["instructor", "instructor name", "اسم المدرس", "المدرس", "المحاضر"], room: ["room", "location", "القاعة", "الموقع"],
   date: ["registration date", "تاريخ التسجيل"],
 };
 function lines(items: PdfTextItem[]) {
@@ -23,7 +23,9 @@ function lines(items: PdfTextItem[]) {
     // Items are already sorted by y. Only the last line can contain this item;
     // avoid a quadratic search through every preceding line of an untrusted PDF.
     let line = result.at(-1);
-    if (!line || Math.abs(line[0].y - item.y) > Math.max(3, Math.min(item.height, line[0].height) * .35)) { line = []; result.push(line); }
+    // Mixed fonts can place centered cell values about half a glyph below a
+    // wrapped cell's first baseline. Keep them in one row, below a full line.
+    if (!line || Math.abs(line[0].y - item.y) > Math.max(3, Math.min(item.height, line[0].height) * .65)) { line = []; result.push(line); }
     line.push(item);
   }
   return result.sort((a,b) => b[0].y - a[0].y);
@@ -33,6 +35,11 @@ function joined(items: PdfTextItem[]) {
   // visual position; never reverse letters or mixed-script values heuristically.
   const rtl = items.some(item => item.dir === "rtl");
   return [...items].sort((a,b) => rtl ? b.x - a.x : a.x - b.x).map(item => item.text).join(" ").trim();
+}
+function footer(row: PdfTextItem[]) {
+  const text = clean(digits(joined(row)));
+  return /مجموع|total|رموز|legend|day codes/i.test(text) ||
+    /^(?:الصفحه|page)\s+\d+\s+(?:من|of)\s*\d+$/i.test(text);
 }
 function headers(line: PdfTextItem[]) {
   const found: { column: Column; x: number }[] = [];
@@ -75,7 +82,7 @@ function days(text: string) {
   return { recognizedDays, unknownTokens, sourceText: text };
 }
 function times(text: string): [string,string] | null {
-  const values = [...digits(text).matchAll(/\b(\d{1,2}):([0-5]\d)\b/g)].map(match => match[1].padStart(2,"0")+":"+match[2]);
+  const values = [...digits(text).matchAll(/(?<![\p{L}\p{N}])(\d{1,2}):([0-5]\d)(?![\p{L}\p{N}])/gu)].map(match => match[1].padStart(2,"0")+":"+match[2]);
   if (values.length !== 2 || values.some(value => value > "23:59") || values[0] === values[1]) return null;
   // Never swap endpoints to make a range pass validation. Reversed/overnight
   // ranges and ambiguous AM/PM notation require correction in the preview.
@@ -113,28 +120,32 @@ export function parseTimetablePages(pages: PdfTextPage[], base: TimetableDraft):
     const body = rows.slice(headerIndex+headerRows(headerIndex).length);
     const anchors = body.flatMap((row,index) => {
       const code = digits(cell(row,"code")).trim();
-      if (/مجموع|total|رموز/i.test(joined(row))) return [];
+      if (footer(row)) return [];
       return (code && (cell(row,"name") || cell(row,"time") || cell(row,"start"))) ||
         (!code && cell(row,"name") && (/^\d+(\.\d+)?$/.test(digits(cell(row,"hours"))) || /:/.test(cell(row,"time")+cell(row,"start")))) ? [index] : [];
     });
     for (let i=0; i<anchors.length; i++) {
       const group = body.slice(anchors[i],anchors[i+1] ?? body.length);
       // Stop at totals/footer, rather than importing arbitrary trailing text.
-      const usable = group.slice(0, group.findIndex(row => /مجموع|total|رموز|legend|day codes/i.test(joined(row))) < 0 ? group.length : group.findIndex(row => /مجموع|total|رموز|legend|day codes/i.test(joined(row))));
+      const footerIndex = group.findIndex(footer);
+      const usable = group.slice(0, footerIndex < 0 ? group.length : footerIndex);
       const value = (column: Column) => usable.map(row => cell(row,column)).filter(Boolean).join(" ").trim();
       const code = digits(value("code"));
-      const name = value("name");
+      const name = value("name").normalize("NFKC");
       const activity = clean(value("activity")).toLowerCase();
       const activityType: DraftCourse["activityType"] = /^(نظري|theory|theoretical)$/.test(activity) ? "theory" : /^(عملي|practical)$/.test(activity) ? "practical" : /^(مختبر|lab|laboratory)$/.test(activity) ? "lab" : null;
       const rawHours = digits(value("hours"));
       const registeredHours = /^\d+(\.\d+)?$/.test(rawHours) ? Number(rawHours) : NaN;
       const registrationDate = digits(value("date")) || null;
       // Repeated course rows collapse only if their course-level values agree.
-      const candidate = {code,name,activityType,registeredHours,instructor:value("instructor")||null,section:digits(value("section"))||null,registrationDate,description:activity && !activityType ? value("activity") : null};
+      const candidate = {code,name,activityType,registeredHours,instructor:value("instructor").normalize("NFKC")||null,section:digits(value("section"))||null,registrationDate,description:activity && !activityType ? value("activity") : null};
       let course = courses.find(row => JSON.stringify([row.code,row.name,row.activityType,row.registeredHours,row.instructor,row.section,row.registrationDate,row.description]) === JSON.stringify(Object.values(candidate)));
       if (!course) {
         const unconfirmed = Object.entries(candidate).filter(([k,v]) => k !== "description" && (v === null || v === "" || typeof v === "number" && !Number.isFinite(v))).map(([k])=>k);
         if (registrationDate && !/^\d{4}-\d{2}-\d{2}$/.test(registrationDate)) unconfirmed.push("registrationDate");
+        // Some RTL fonts expose mirrored numeric brackets. Retain the source
+        // value for manual correction rather than guessing a character reversal.
+        if (/\)\s*[\d٠-٩۰-۹]+\s*\(/.test(name)) unconfirmed.push("name");
         course = { ...candidate, key:"pdf-course:"+crypto.randomUUID(), unconfirmed };
         courses.push(course);
       }
