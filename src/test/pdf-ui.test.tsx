@@ -139,6 +139,69 @@ it("adds/excludes draft rows without deleting academic records and highlights un
   click("Exclude draft course and meetings");expect(screen.queryByLabelText("Course name · 1")).not.toBeInTheDocument();
 });
 
+it("keeps paired preview times accessible and every compact cell editable without mutating the incoming draft",()=>{
+  act(()=>setLanguage("en"));
+  const incoming:TimetableDraft={...emptyDraft(),courses:[{key:"c",code:"SYN101",name:"Synthetic course",registeredHours:3,activityType:"theory",unconfirmed:["name"]}],sessions:[{key:"s",courseKey:"c",dayOfWeek:1,startTime:"09:00",endTime:"10:00",room:"R-1",deliveryMode:"in-person",unconfirmed:["startTime"]}]};
+  const original=structuredClone(incoming);
+  const change=vi.fn();
+  function Harness(){const [draft,setDraft]=useState(incoming);return <PdfDraftTable draft={draft} onChange={next=>{change(next);setDraft(next);}}/>;}
+  render(<Harness/>);
+  const start=screen.getByLabelText("Start time (24 hour) · 1 / 1"),end=screen.getByLabelText("End time (24 hour) · 1 / 1");
+  expect(start.closest("td")).toBe(end.closest("td"));
+  expect(start.closest(".table-time-range")).toHaveAttribute("dir","ltr");
+  expect(start.closest(".table-time-range")).toContainElement(end);
+  expect(screen.getByLabelText("Course name · 1").tagName).toBe("TEXTAREA");
+  expect(screen.getByLabelText("Instructor · 1").tagName).toBe("TEXTAREA");
+  const reveal=vi.fn();
+  Object.defineProperty(start,"scrollIntoView",{configurable:true,value:reveal});
+  fireEvent.focus(start);
+  expect(reveal).toHaveBeenCalledExactlyOnceWith({block:"nearest",inline:"nearest"});
+  const values:Record<string,string>={"Course code · 1":"SYN202","Course name · 1":"مقرر تجريبي طويل","Credit hours · 1":"2","Section · 1":"4","Instructor · 1":"Synthetic long instructor name","Registration date · 1":"2038-09-02","Start time (24 hour) · 1 / 1":"11:00","End time (24 hour) · 1 / 1":"12:00","Room / online location · 1 / 1":"Online room"};
+  for(const [label,value] of Object.entries(values))fireEvent.change(screen.getByLabelText(label),{target:{value}});
+  fireEvent.change(screen.getByLabelText("Activity · 1"),{target:{value:"practical"}});
+  fireEvent.change(screen.getByLabelText("Meeting day · 1 / 1"),{target:{value:"4"}});
+  fireEvent.change(screen.getByLabelText("Delivery mode · 1 / 1"),{target:{value:"online"}});
+  const edited=change.mock.lastCall![0] as TimetableDraft;
+  expect(edited.courses[0]).toMatchObject({key:"c",code:"SYN202",name:"مقرر تجريبي طويل",registeredHours:2,section:"4",instructor:"Synthetic long instructor name",registrationDate:"2038-09-02",activityType:"practical",unconfirmed:["name"]});
+  expect(edited.sessions[0]).toMatchObject({key:"s",courseKey:"c",dayOfWeek:4,startTime:"11:00",endTime:"12:00",room:"Online room",deliveryMode:"online",unconfirmed:["startTime"]});
+  click("Mark fields in this row reviewed");click("Mark fields in this row reviewed (Meeting day)");
+  expect(change.mock.lastCall![0].courses[0].unconfirmed).toEqual([]);
+  expect(change.mock.lastCall![0].sessions[0].unconfirmed).toEqual([]);
+  expect(incoming).toEqual(original);
+});
+
+it("keeps course actions separate from every meeting across all seven course groups",()=>{
+  act(()=>setLanguage("en"));
+  const counts=[1,2,3,3,2,1,3];
+  const incoming:TimetableDraft={...emptyDraft(),courses:counts.map((_,i)=>({key:`c${i}`,code:`SYN${i}`,name:`Synthetic ${i}`,registeredHours:3,unconfirmed:["name"]})),sessions:counts.flatMap((count,i)=>Array.from({length:count},(_,j)=>({key:`s${i}-${j}`,courseKey:`c${i}`,dayOfWeek:[7,2,4][j],startTime:"09:00",endTime:"10:00",room:"R-1",deliveryMode:"in-person" as const,unconfirmed:["startTime"]})))};
+  const original=structuredClone(incoming),change=vi.fn();
+  function Harness(){const [draft,setDraft]=useState(incoming);return <PdfDraftTable draft={draft} onChange={next=>{change(next);setDraft(next);}}/>;}
+  render(<Harness/>);
+  const groups=screen.getByRole("table").querySelectorAll("tbody");
+  expect(groups).toHaveLength(7);
+  groups.forEach((group,i)=>{
+    expect(group.rows).toHaveLength(counts[i]);
+    const courseActions=group.querySelector(".table-course-actions")!;
+    expect(courseActions.closest("td")).toHaveAttribute("rowspan",String(counts[i]));
+    expect(within(courseActions as HTMLElement).getAllByRole("button")).toHaveLength(3);
+    for(const row of group.rows)expect(within(row.querySelector(".table-actions") as HTMLElement).getAllByRole("button")).toHaveLength(2);
+  });
+  const last=groups[6];
+  fireEvent.click(within(last).getByRole("button",{name:"Add draft meeting"}));
+  fireEvent.change(screen.getByLabelText("Start time (24 hour) · 7 / 4"),{target:{value:"13:15"}});
+  fireEvent.change(screen.getByLabelText("End time (24 hour) · 7 / 4"),{target:{value:"14:15"}});
+  expect(change.mock.lastCall![0].sessions.at(-1)).toMatchObject({courseKey:"c6",startTime:"13:15",endTime:"14:15"});
+  fireEvent.click(within(last).getAllByRole("button",{name:"Exclude draft meeting"}).at(-1)!);
+  expect(change.mock.lastCall![0]).toEqual(original);
+  fireEvent.click(within(last).getByRole("button",{name:"Mark fields in this row reviewed"}));
+  expect(change.mock.lastCall![0].courses[6].unconfirmed).toEqual([]);
+  expect(change.mock.lastCall![0].courses[5].unconfirmed).toEqual(["name"]);
+  fireEvent.click(within(last).getByRole("button",{name:"Exclude draft course and meetings"}));
+  expect(change.mock.lastCall![0].courses).toHaveLength(6);
+  expect(change.mock.lastCall![0].sessions).toHaveLength(12);
+  expect(incoming).toEqual(original);
+});
+
 it("cancels a controlled in-flight PDF read, ignores its late result, and accepts a later upload",async()=>{
   const {store,save}=mount();
   const input=await screen.findByLabelText("Choose a text PDF");await waitFor(()=>expect(input).toBeEnabled());

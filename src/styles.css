@@ -865,9 +865,59 @@ main:focus {
 .academic-table tbody { scroll-margin-block: 24px; }
 .academic-table tbody:focus { outline: 2px solid var(--color-secondary); outline-offset: -2px; }
 .academic-table .table-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
-.academic-table :is(input, select) { width: 100%; min-width: 0; color: var(--color-foreground); background: var(--color-background); border: 1px solid var(--border); border-radius: 6px; padding: 8px; min-height: 44px; }
+.academic-table :is(input, select), .editable-timetable textarea { width: 100%; min-width: 0; color: var(--color-foreground); background: var(--color-background); border: 1px solid var(--border); border-radius: 6px; padding: 8px; min-height: 44px; }
 .academic-table [data-uncertain="true"] { outline: 2px solid #d5b15f; outline-offset: 1px; }
 .academic-table .table-field { display: block; margin-bottom: 8px; }
+/* Course actions share the course-name cell instead of inflating the first
+   meeting. Each meeting keeps one line of controls. Preserve native row sizing
+   and let narrow screens scroll this region, not the page. */
+.editable-timetable .academic-table { min-width: 2484px; }
+.editable-timetable .academic-table :is(th, td) { padding-block: 6px; }
+.editable-timetable th:nth-child(1) { width: 132px; }
+.editable-timetable th:nth-child(2) { width: 480px; }
+.editable-timetable th:nth-child(3) { width: 120px; }
+.editable-timetable th:nth-child(4),
+.editable-timetable th:nth-child(5) { width: 96px; }
+.editable-timetable th:nth-child(6) { width: 140px; }
+.editable-timetable th:nth-child(7),
+.editable-timetable th:nth-child(8) { width: 240px; }
+.editable-timetable th:nth-child(9) { width: 320px; }
+.editable-timetable th:nth-child(10) { width: 170px; }
+.editable-timetable th:nth-child(11) { width: 450px; }
+.editable-timetable .table-field { margin: 0; }
+.editable-timetable :is(input, select) { display: block; height: 44px; font: inherit; }
+.editable-timetable textarea { display: block; max-inline-size: 280px; field-sizing: content; resize: vertical; font: inherit; overflow-wrap: anywhere; }
+.editable-timetable .table-time-range { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.editable-timetable .table-meeting-location { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.editable-timetable .table-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.editable-timetable .table-course-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-block-start: 8px; }
+.editable-timetable :is(.table-actions, .table-course-actions) button { padding: 8px 10px; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.editable-timetable :is(input, select, textarea, button) { scroll-margin: 8px; }
+.editable-timetable .review-note { margin-block: 8px 0; }
+.pdf-weekday-review { overflow-wrap: anywhere; }
+/* The saved timetable has its own layout. Course actions span the course's
+   meetings; session actions occupy only their own compact, native table row. */
+.saved-timetable .academic-table { min-width: 2360px; }
+.saved-timetable .academic-table :is(th, td) { padding-block: 6px; }
+.saved-timetable thead th:nth-child(1) { width: 132px; }
+.saved-timetable thead th:nth-child(2) { width: 240px; }
+.saved-timetable thead th:nth-child(3) { width: 120px; }
+.saved-timetable thead th:nth-child(4),
+.saved-timetable thead th:nth-child(5) { width: 80px; }
+.saved-timetable thead th:nth-child(6) { width: 128px; }
+.saved-timetable thead th:nth-child(7),
+.saved-timetable thead th:nth-child(10) { width: 150px; }
+.saved-timetable thead th:nth-child(8) { width: 240px; }
+.saved-timetable thead th:nth-child(9) { width: 200px; }
+.saved-timetable thead th:nth-child(11) { width: 480px; }
+.saved-timetable thead th:nth-child(12) { width: 360px; }
+.saved-timetable .saved-course-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.saved-timetable .table-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.saved-timetable :is(.saved-course-actions, .table-actions) button { padding: 8px 10px; font-size: 12px; font-weight: 400; line-height: 1.4; scroll-margin: 8px; }
+@media (max-width: 767px) {
+  .editable-timetable :is(input, select, textarea, button) { scroll-margin-block-end: calc(88px + env(safe-area-inset-bottom)); }
+  .saved-timetable :is(.saved-course-actions, .table-actions) button { scroll-margin-block-end: calc(88px + env(safe-area-inset-bottom)); }
+}
 .pdf-upload input[type="file"] { display: block; max-width: 100%; margin-block: 16px; }
 .review-table-scroll table {
   width: 100%;

@@ -6,7 +6,7 @@ import { timetableText as t } from "../features/timetable/messages";
 /** A notice about source text, not an invented meeting or a persisted entity. */
 export function PdfWeekdayReview({draft,onChange}: {draft:TimetableDraft;onChange?:(draft:TimetableDraft)=>void}) {
   if (!draft.weekdayReviews?.length) return null;
-  return <section className="review-findings finding-danger" aria-label={p.weekdayTitle}>
+  return <section className="review-findings finding-danger pdf-weekday-review" aria-label={p.weekdayTitle}>
     <h3>{p.weekdayTitle}</h3>
     <p>{p.weekdayHelp}</p>
     {draft.weekdayReviews.map((review,index)=><div key={review.key}>
@@ -27,7 +27,7 @@ export function PdfDraftTable({draft,onChange}: {draft:TimetableDraft;onChange:(
     const unknown = row.unconfirmed.includes(field);
     return <label className="table-field" data-uncertain={unknown || undefined}>
       <span className="sr-only">{label}</span>
-      <input type={type} dir={["code","registrationDate","registeredHours","section","startTime","endTime"].includes(field) ? "ltr" : undefined} placeholder={field === "registrationDate" ? "YYYY-MM-DD" : undefined} value={typeof value === "number" && !Number.isFinite(value) ? "" : value ?? ""} onChange={e=>change(e.target.value)} aria-label={label} aria-description={unknown?p.uncertain:undefined} />
+      {field === "name" || field === "instructor" ? <textarea rows={2} value={value??""} onChange={e=>change(e.target.value)} aria-label={label} aria-description={unknown?p.uncertain:undefined}/> : <input type={type} dir={["code","registrationDate","registeredHours","section","startTime","endTime"].includes(field) ? "ltr" : undefined} placeholder={field === "registrationDate" ? "YYYY-MM-DD" : undefined} value={typeof value === "number" && !Number.isFinite(value) ? "" : value ?? ""} onChange={e=>change(e.target.value)} aria-label={label} aria-description={unknown?p.uncertain:undefined} />}
     </label>;
   }
   return <>
@@ -41,7 +41,13 @@ export function PdfDraftTable({draft,onChange}: {draft:TimetableDraft;onChange:(
         return <tbody key={course.key} aria-label={(course.code || p.name)+" ("+(ci+1)+")"}>{meetings.map((session,si)=><tr key={session?.key??course.key}>
           {si===0 && <>
             <td rowSpan={meetings.length}>{input(course,"code",p.code+suffix,course.code,code=>courseEdit(course.key,{code}))}</td>
-            <td rowSpan={meetings.length}>{input(course,"name",p.name+suffix,course.name,name=>courseEdit(course.key,{name}))}</td>
+            <td rowSpan={meetings.length}>{input(course,"name",p.name+suffix,course.name,name=>courseEdit(course.key,{name}))}
+              <div className="table-course-actions" role="group" aria-label={p.actions+suffix}>
+                <button onClick={()=>onChange({...draft,sessions:[...draft.sessions,newSession(course.key)]})}>{p.addSession}</button>
+                <button onClick={()=>onChange({...draft,courses:draft.courses.filter(c=>c.key!==course.key),sessions:draft.sessions.filter(s=>s.courseKey!==course.key),weekdayReviews:draft.weekdayReviews?.filter(r=>r.courseKey!==course.key)})}>{p.removeCourse}</button>
+                <button onClick={()=>courseEdit(course.key,{unconfirmed:[]})}>{p.confirmField}</button>
+              </div>
+            </td>
             <td rowSpan={meetings.length}><select aria-label={p.activity+suffix} data-uncertain={course.unconfirmed.includes("activityType")||undefined} value={course.activityType??""} onChange={e=>courseEdit(course.key,{activityType:(e.target.value||null) as DraftCourse["activityType"]})}>
               <option value="">{p.unknown}</option><option value="theory">{t.theory}</option><option value="practical">{t.practical}</option><option value="lab">{p.lab}</option>
             </select>{course.description && <p className="review-note"><bdi>{course.description}</bdi></p>}</td>
@@ -51,16 +57,11 @@ export function PdfDraftTable({draft,onChange}: {draft:TimetableDraft;onChange:(
           <td>{session && <select aria-label={p.day+suffix+" / "+(si+1)} data-uncertain={session.unconfirmed.includes("dayOfWeek")||undefined} value={session.dayOfWeek} onChange={e=>sessionEdit(session.key,{dayOfWeek:Number(e.target.value)})}>
             <option value={0}>{p.unknown}</option>{[7,1,2,3,4,5,6].map(day=><option value={day} key={day}>{t.days[day]}</option>)}
           </select>}</td>
-          <td>{session && <div dir="ltr">{input(session,"startTime",t.start+suffix+" / "+(si+1),session.startTime,startTime=>sessionEdit(session.key,{startTime}))}{input(session,"endTime",t.end+suffix+" / "+(si+1),session.endTime,endTime=>sessionEdit(session.key,{endTime}))}{session.notes && <p className="review-note"><bdi>{session.notes}</bdi></p>}</div>}</td>
+          <td>{session && <><div className="table-time-range" dir="ltr">{input(session,"startTime",t.start+suffix+" / "+(si+1),session.startTime,startTime=>sessionEdit(session.key,{startTime}))}<span aria-hidden="true">–</span>{input(session,"endTime",t.end+suffix+" / "+(si+1),session.endTime,endTime=>sessionEdit(session.key,{endTime}))}</div>{session.notes && <p className="review-note"><bdi>{session.notes}</bdi></p>}</>}</td>
           {si===0 && <td rowSpan={meetings.length}>{input(course,"instructor",p.instructor+suffix,course.instructor,instructor=>courseEdit(course.key,{instructor:instructor||null}))}</td>}
-          <td>{session && <>{input(session,"room",p.room+suffix+" / "+(si+1),session.room??session.location,room=>sessionEdit(session.key,{room:room||null}))}<select aria-label={t.mode+suffix+" / "+(si+1)} data-uncertain={session.unconfirmed.includes("deliveryMode")||undefined} value={session.deliveryMode} onChange={e=>sessionEdit(session.key,{deliveryMode:e.target.value as DraftSession["deliveryMode"]})}><option value="">{p.unknown}</option><option value="in-person">{t.inPerson}</option><option value="online">{t.online}</option></select></>}</td>
+          <td>{session && <div className="table-meeting-location">{input(session,"room",p.room+suffix+" / "+(si+1),session.room??session.location,room=>sessionEdit(session.key,{room:room||null}))}<select aria-label={t.mode+suffix+" / "+(si+1)} data-uncertain={session.unconfirmed.includes("deliveryMode")||undefined} value={session.deliveryMode} onChange={e=>sessionEdit(session.key,{deliveryMode:e.target.value as DraftSession["deliveryMode"]})}><option value="">{p.unknown}</option><option value="in-person">{t.inPerson}</option><option value="online">{t.online}</option></select></div>}</td>
           {si===0 && <td rowSpan={meetings.length}>{input(course,"registrationDate",p.registrationDate+suffix,course.registrationDate,registrationDate=>courseEdit(course.key,{registrationDate:registrationDate||null}))}</td>}
-          <td><div className="table-actions">
-            {si===0 && <>
-              <button onClick={()=>onChange({...draft,sessions:[...draft.sessions,newSession(course.key)]})}>{p.addSession}</button>
-              <button onClick={()=>onChange({...draft,courses:draft.courses.filter(c=>c.key!==course.key),sessions:draft.sessions.filter(s=>s.courseKey!==course.key),weekdayReviews:draft.weekdayReviews?.filter(r=>r.courseKey!==course.key)})}>{p.removeCourse}</button>
-              <button onClick={()=>courseEdit(course.key,{unconfirmed:[]})}>{p.confirmField}</button>
-            </>}
+          <td><div className="table-actions" role="group" aria-label={p.actions+suffix+" / "+(si+1)}>
             {session && <><button onClick={()=>onChange({...draft,sessions:draft.sessions.filter(s=>s.key!==session.key)})}>{p.removeSession}</button><button onClick={()=>sessionEdit(session.key,{unconfirmed:[]})}>{p.confirmField} ({p.day})</button></>}
           </div></td>
         </tr>)}</tbody>;
