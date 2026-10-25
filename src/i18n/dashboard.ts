@@ -1,0 +1,38 @@
+import { dynamic, getLanguage } from "./locale";
+const ar = {
+  todayCount: "جلسات اليوم المجدولة",
+  upcomingCount: "جلسات قادمة في الفترة المعروضة",
+  recorded: "المحاضرات المحفوظة",
+  notes: "محاضرات تحتوي على ملاحظات",
+  upcoming: "الجلسات المجدولة القادمة",
+  window: "فترة العرض",
+  noUpcoming: "لا توجد جلسات قادمة في هذه الفترة ضمن تواريخ الفصل.",
+  invalid: "توجد جلسات ذات مواعيد أو علاقات غير صالحة لم تُدرج في العرض. راجع المقررات؛ لم تتغير البيانات.",
+  overlap: "تداخل في المواعيد",
+  open: "فتح المحاضرة",
+  choose: "توجد عدة محاضرات محفوظة لهذه الجلسة. اختر السجل المقصود.",
+  noLecture: "لا يوجد سجل محاضرة مرتبط بهذه الجلسة والتاريخ. يمكنك إدارة الجلسة من المقرر.",
+  saved: "أحدث المحاضرات المحفوظة",
+  savedHint: "حتى خمس محاضرات في الفصل المحدد، مرتبة حسب التاريخ. يمكن فتح بقية المحاضرات من مقررها.",
+  noSaved: "لا توجد محاضرات محفوظة في هذا الفصل.",
+  local: "سجلات محلية على هذا الجهاز؛ لا تعني وجود نسخة احتياطية أو مزامنة سحابية.",
+};
+const en: typeof ar = {
+  todayCount: "Today's scheduled classes",
+  upcomingCount: "Upcoming classes in preview window",
+  recorded: "Saved lectures",
+  notes: "Lectures with notes",
+  upcoming: "Upcoming scheduled classes",
+  window: "Preview window",
+  noUpcoming: "No upcoming classes in this window within the term dates.",
+  invalid: "Some sessions have invalid times or relationships and are excluded. Review Courses; no data was changed.",
+  overlap: "Schedule overlap",
+  open: "Open lecture",
+  choose: "Several saved lectures match this session and date. Choose the intended record.",
+  noLecture: "No lecture record is linked to this session and date. Manage the session from its course.",
+  saved: "Recent saved lectures",
+  savedHint: "Up to five lectures in the selected term, ordered by date. Open other lectures from their courses.",
+  noSaved: "No saved lectures in this term.",
+  local: "Local records on this device; this does not imply cloud backup or synchronization.",
+};
+export const dashboardText = dynamic(() => getLanguage() === "ar" ? ar : en);

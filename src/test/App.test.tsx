@@ -1,0 +1,101 @@
+import { render, screen, within, fireEvent, act } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
+import { App } from "../app/App";
+import { ToastProvider } from "../components/ToastProvider";
+import { useToast } from "../components/toast-context";
+
+function renderRoute(path = "/") {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <App />
+    </MemoryRouter>,
+  );
+}
+
+describe("Phase 0 shell", () => {
+  it("renders the academic entry without inventing data", async () => {
+    renderRoute();
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
+      "مرحباً بك في UniCore",
+    );
+    expect(
+      screen.getByRole("combobox", { name: "Language / اللغة" }),
+    ).toBeInTheDocument();
+  });
+  it.each(["المقررات", "التقويم", "المحاضرات", "المواد"])(
+    "navigates to %s with both navigation states synchronized",
+    (label) => {
+      renderRoute();
+      const desktop = screen.getByRole("navigation", {
+        name: "التنقل الرئيسي",
+      });
+      fireEvent.click(within(desktop).getByRole("link", { name: label }));
+      expect(
+        screen.getByRole("heading", { level: 1, name: label === "المواد" ? "المواد الأكاديمية" : label }),
+      ).toBeInTheDocument();
+      for (const nav of screen.getAllByRole("navigation")) {
+        expect(within(nav).getByRole("link", { name: label })).toHaveAttribute(
+          "aria-current",
+          "page",
+        );
+        expect(
+          within(nav).getByRole("link", { name: "لوحة التحكم" }),
+        ).not.toHaveAttribute("aria-current");
+      }
+      expect(document.title).toBe(`${label} | UniCore`);
+      expect(screen.getByRole("main")).toHaveFocus();
+    },
+  );
+  it("handles unknown routes and offers working recovery", async () => {
+    renderRoute("/missing");
+    expect(
+      screen.getByRole("heading", { name: "الصفحة غير موجودة" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("link", { name: "العودة إلى لوحة التحكم" }),
+    );
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
+      "مرحباً بك في UniCore",
+    );
+  });
+});
+
+function ToastHarness() {
+  const notify = useToast();
+  return <button onClick={() => notify("Example notification")}>Notify</button>;
+}
+
+describe("Toast foundation", () => {
+  it("announces a message and supports dismissal", () => {
+    render(
+      <ToastProvider>
+        <ToastHarness />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Notify" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Example notification",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "إغلاق الإشعار" }));
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+  it("expires messages and cleans timers on unmount", () => {
+    vi.useFakeTimers();
+    try {
+      const view = render(
+        <ToastProvider>
+          <ToastHarness />
+        </ToastProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Notify" }));
+      act(() => vi.advanceTimersByTime(6000));
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+      fireEvent.click(screen.getByRole("button", { name: "Notify" }));
+      view.unmount();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
