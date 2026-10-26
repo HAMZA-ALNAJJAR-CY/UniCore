@@ -44,10 +44,20 @@ function joined(items: PdfTextItem[]) {
   const rtl = items.some(item => item.dir === "rtl");
   return [...items].sort((a,b) => rtl ? b.x - a.x : a.x - b.x).map(item => item.text).join(" ").trim();
 }
-function footer(row: PdfTextItem[]) {
-  const text = clean(digits(joined(row)));
-  return /مجموع|total|رموز|legend|day codes/i.test(text) ||
-    /^(?:الصفحه|page)\s+\d+\s+(?:من|of)\s*\d+$/i.test(text);
+function footerText(value: string, labelOnly = false) {
+  const text = clean(digits(value)).replace(/\s+/g, " ");
+  // Classify complete footer records, never a keyword inside academic text.
+  // Totals consist of a label and scalar value/units; legends contain only
+  // known weekday names/codes after their label. Retain unfamiliar prose.
+  if (/^(?:الصفحه|page)\s+\d+\s+(?:من|of)\s*\d+$/i.test(text)) return true;
+  const total = "(?:total(?: (?:registered )?(?:credit )?hours)?|مجموع(?: الساعات(?: المسجله)?)?)";
+  const amount = "\\d+(?:\\.\\d+)?(?:\\s*(?:credit hours?|hours?|ساعه(?:\\s*[/،]\\s*ساعات)?|ساعات))?";
+  if (labelOnly && new RegExp(`^${total}\\s*[:：=-]?$`, "i").test(text)) return true;
+  if (new RegExp(`^(?:${total}\\s*[:：=-]?\\s*${amount}|${amount}\\s*[:：=-]?\\s*${total})$`, "i").test(text)) return true;
+  const legend = /^(?:legend|day codes|رموز(?: الايام)?)\s*[:：-]?\s*(.*)$/i.exec(text);
+  if (!legend) return false;
+  const tokens = legend[1].split(/[\s\p{P}\p{S}]+/u).filter(Boolean);
+  return tokens.every(token => Object.hasOwn(weekdays, token.toLowerCase()));
 }
 function headers(line: PdfTextItem[]) {
   const found: { column: Column; x: number }[] = [];
@@ -132,6 +142,13 @@ export function parseTimetablePages(pages: PdfTextPage[], base: TimetableDraft):
       return joined(row.filter(item => item.x+item.width/2 >= low && item.x+item.width/2 < high));
     };
     const body = lines(rows.slice(headerIndex+headerRows(headerIndex).length).flat(),columnAt);
+    const footer = (row: PdfTextItem[]) => {
+      const code = cell(row,"code");
+      // A course identifier is not footer prose. Numeric totals may occupy
+      // this column, but an actual course row must never be removed by its title.
+      if (code && !/^\d+(\.\d+)?$/.test(digits(code)) && !footerText(code,true)) return false;
+      return footerText(joined(row));
+    };
     const anchors = body.flatMap((row,index) => {
       const code = digits(cell(row,"code")).trim();
       if (footer(row)) return [];

@@ -21,6 +21,62 @@ const base=()=>({...emptyDraft(),term:{key:"term",name:"Synthetic term",academic
 const confirm=(r:TimetableReview)=>({confirmed:true,keepExistingKeys:r.differences.map(d=>d.key)});
 async function extract(options={}) {return extractTimetablePdf(new File([syntheticTimetablePdf(options)],"synthetic.pdf",{type:"application/pdf"}),base(),new AbortController().signal);}
 
+const footerLikeTitles = ["Total Quality Management", "Legend Of Software Design", "نظرية المجموعات", "رموز البرمجة"];
+
+it.each(footerLikeTitles)("retains legitimate footer-like course titles through PDF.js extraction: %s",async(name)=>{
+  const draft=await extract({englishTitle:name,arabicTitle:name,arabic:/\p{Script=Arabic}/u.test(name),shuffled:true,registrationDates:["31-08-2026","05-10-2026"]});
+  expect(draft.courses.map(course=>course.code)).toEqual(["SYN101","SYN102"]);
+  expect(draft.courses[0]).toMatchObject({name,registeredHours:3,section:"2",registrationDate:"2026-08-31"});
+  expect(draft.courses[1].registrationDate).toBe("2026-10-05");
+  expect(draft.sessions.filter(session=>session.courseKey===draft.courses[0].key)).toEqual([
+    expect.objectContaining({dayOfWeek:7,startTime:"09:00",endTime:"10:00",room:"R-101"}),
+    expect.objectContaining({dayOfWeek:2,startTime:"09:00",endTime:"10:00",room:"R-101"}),
+  ]);
+  expect(draft.sessions).toHaveLength(3);
+  for(const table of db.tables)expect(await table.count()).toBe(0);
+});
+
+it.each(footerLikeTitles)("keeps footer-like wrapped title content and following courses: %s",(name)=>{
+  const text=(text:string,x:number,y:number):PdfTextItem=>({text,x,y,width:50,height:10,dir:"ltr"});
+  const draft=parseTimetablePages([{items:[
+    text("Course code",0,100),text("Course name",140,100),text("Time",400,100),
+    text("SYN101",0,80),text("Synthetic",140,80),text("09:00-10:00 Mon",400,80),
+    text(name,140,66),
+    text("SYN102",0,45),text("Next course",140,45),text("11:00-12:00 Tue",400,45),
+  ]}],base());
+  expect(draft.courses.map(course=>course.name)).toEqual(["Synthetic "+name,"Next course"]);
+  expect(draft.sessions.map(session=>[session.courseKey,session.dayOfWeek,session.startTime])).toEqual([
+    [draft.courses[0].key,1,"09:00"],[draft.courses[1].key,2,"11:00"],
+  ]);
+});
+
+it.each([
+  "Total credit hours: 4", "مجموع الساعات المسجلة: ٤ ساعة / ساعات",
+  "Legend: Sun = Sunday; Tue = Tuesday", "رموز الأيام: ح = الأحد؛ ث = الثلاثاء", "Day codes: Mon = Monday",
+])("excludes complete summary and weekday-legend footer rows: %s",async(pageFooter)=>{
+  const draft=await extract({pageFooter});
+  expect(draft.courses).toHaveLength(2);expect(draft.sessions).toHaveLength(3);
+  expect(draft.courses[1]).toMatchObject({code:"SYN102",name:"Synthetic Lab",section:"1",registeredHours:1,instructor:"Synthetic Instructor"});
+  expect(draft.sessions[2]).toMatchObject({courseKey:draft.courses[1].key,dayOfWeek:1,startTime:"12:00",endTime:"14:00",room:"online"});
+  expect(draft.weekdayReviews).toEqual([]);
+});
+
+it("classifies split total cells without importing a fake course or trailing legend rows",()=>{
+  const text=(text:string,x:number,y:number):PdfTextItem=>({text,x,y,width:50,height:10,dir:"ltr"});
+  const draft=parseTimetablePages([{items:[
+    text("Course code",0,130),text("Course name",140,130),text("Credits",300,130),text("Time",450,130),
+    text("SYN101",0,110),text("Total Quality Management",140,110),text("3",300,110),text("09:00-10:00 Mon",450,110),
+    text("SYN102",0,90),text("Legend Of Software Design",140,90),text("1",300,90),text("11:00-12:00 Tue",450,90),
+    text("Total credit hours:",0,70),text("4",300,70),
+    text("Legend",140,55),text("Sun = Sunday",450,40),
+  ]}],base());
+  expect(draft.courses.map(course=>[course.code,course.name,course.registeredHours])).toEqual([
+    ["SYN101","Total Quality Management",3],["SYN102","Legend Of Software Design",1],
+  ]);
+  expect(draft.sessions.map(session=>session.dayOfWeek)).toEqual([1,2]);
+  expect(draft.weekdayReviews).toEqual([]);
+});
+
 it.each(["2038-09-01","31-08-2026"])("reuses one course for repeated meeting rows with the identical date %s",async(date)=>{
   const draft=await extract({registrationDates:[date,"2038-10-02"],repeatedCourseDates:[date]});
   expect(draft.courses).toHaveLength(2);expect(draft.sessions).toHaveLength(4);
