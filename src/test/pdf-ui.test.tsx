@@ -39,6 +39,35 @@ async function upload(weekdayText="Sun Tue",options={}){
 }
 const click=(name:string)=>fireEvent.click(screen.getByRole("button",{name}));
 
+it("D1.2 exposes uncertain imported text bilingually and saves only the student's corrected draft",async()=>{
+  const {store,save}=mount();
+  const trailing="Advising information: synthetic notice";
+  await upload("Sun Tue",{pageFooter:trailing,footerX:120});
+  fireEvent.change(screen.getByLabelText("Term name"),{target:{value:"Synthetic uncertainty review"}});
+  fireEvent.change(screen.getByLabelText("Academic year"),{target:{value:"2038/2039"}});
+  click("Next");
+  expect(screen.getByRole("status")).toHaveTextContent("Highlighted fields may be missing or include wrapped or unassigned PDF text.");
+  const input=screen.getByLabelText("Course name · 2");
+  expect(input.closest("label")).toHaveAttribute("data-uncertain","true");
+  expect(input).toHaveValue("Synthetic Lab "+trailing);
+  act(()=>setLanguage("ar"));
+  expect(screen.getByRole("status")).toHaveTextContent("قد تكون الحقول المميزة ناقصة أو تتضمن نصاً ملتفاً أو غير محسوم الارتباط من ملف PDF.");
+  expect(screen.getByLabelText("اسم المقرر · 2")).toHaveValue("Synthetic Lab "+trailing);
+  act(()=>setLanguage("en"));
+  expect(save).not.toHaveBeenCalled();expect((await store.getTimetable()).terms).toHaveLength(0);
+  fireEvent.change(screen.getByLabelText("Course name · 2"),{target:{value:"Synthetic Lab"}});
+  const groups=screen.getByRole("table",{name:"Editable timetable preview"}).querySelectorAll("tbody");
+  fireEvent.click(within(groups[1]).getByRole("button",{name:"Mark fields in this row reviewed"}));
+  expect(screen.getByLabelText("Course name · 2").closest("label")).not.toHaveAttribute("data-uncertain");
+  click("Next");click("Next");await screen.findByRole("heading",{name:"Final review",level:2});
+  expect(screen.getByRole("heading",{name:/Errors blocking save/}).parentElement).toHaveTextContent("(0)");
+  expect(save).not.toHaveBeenCalled();click("Next");
+  fireEvent.click(screen.getByRole("checkbox",{name:/I reviewed/}));click("Confirm and save timetable locally");
+  await screen.findByRole("table",{name:"University timetable"});
+  const saved=await store.getTimetable();expect(saved.courses.map(course=>course.name)).toEqual(expect.arrayContaining(["Synthetic Algebra","Synthetic Lab"]));
+  expect(saved.sessions).toHaveLength(3);expect(save).toHaveBeenCalledOnce();
+},20000);
+
 it("shows both conflicting course dates bilingually and blocks save until explicit duplicate resolution",async()=>{
   const {store,save}=mount();
   await upload("Sun Tue",{registrationDates:["31-08-2026","2038-10-02"],repeatedCourseDates:["05-10-2026"]});

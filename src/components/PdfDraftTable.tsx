@@ -52,6 +52,7 @@ export function PdfDraftTable({draft,onChange}: {draft:TimetableDraft;onChange:(
   }
   return <>
     <p className="review-note">{p.extracted}</p>
+    {[...draft.courses,...draft.sessions].some(row=>row.unconfirmed.length>0) && <p className="review-note" role="status">{p.uncertainHelp}</p>}
     <PdfWeekdayReview draft={draft} onChange={onChange}/>
     <TimetableTableFrame caption={p.preview} editable>
       {draft.courses.map((course,ci)=>{

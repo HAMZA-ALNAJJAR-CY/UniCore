@@ -23,6 +23,152 @@ async function extract(options={}) {return extractTimetablePdf(new File([synthet
 
 const footerLikeTitles = ["Total Quality Management", "Legend Of Software Design", "نظرية المجموعات", "رموز البرمجة"];
 
+it.each([
+  {field:"name",meeting:"day",fragment:"Legend",day:"Mon",expectedDay:1},
+  {field:"name",meeting:"time",fragment:"Legend",day:"Mon",expectedDay:1},
+  {field:"instructor",meeting:"day",fragment:"Legend",day:"Mon",expectedDay:1},
+  {field:"room",meeting:"time",fragment:"Legend",day:"Mon",expectedDay:1},
+  {field:"name",meeting:"day",fragment:"رموز",day:"ح",expectedDay:7},
+] as const)("D1.2 P2 preserves mixed academic $field/$meeting fragments: $fragment $day",({field,meeting,fragment,day,expectedDay})=>{
+  const text=(text:string,x:number,y:number):PdfTextItem=>({text,x,y,width:50,height:10,dir:"ltr"});
+  const draft=parseTimetablePages([{items:[
+    text("Course code",0,160),text("Course name",140,160),text("Credits",280,160),
+    ...(meeting==="day"?[text("Day",380,160)]:[]),text("Time",500,160),text("Room",740,160),text("Instructor",900,160),
+    text("SYN101",0,140),text("Synthetic course",140,140),text("3",280,140),text("09:00-10:00",500,140),text("R-1",740,140),text("Synthetic Teacher",900,140),
+    text(fragment,{name:140,instructor:900,room:740}[field],120),text(day,meeting==="day"?380:500,120),
+    text(meeting==="day"?"11:00-12:00":"11:00-12:00 Tue",500,100),...(meeting==="day"?[text("Tue",380,100)]:[]),text("R-2",740,100),
+  ]}],base());
+  expect(draft.courses).toHaveLength(1);
+  expect(draft.sessions).toHaveLength(2);
+  expect(draft.sessions[0]).toMatchObject({courseKey:draft.courses[0].key,dayOfWeek:expectedDay,startTime:"09:00",endTime:"10:00",room:field==="room"?"R-1 "+fragment:"R-1"});
+  expect(draft.sessions[1]).toMatchObject({courseKey:draft.courses[0].key,dayOfWeek:2,startTime:"11:00",endTime:"12:00",room:"R-2"});
+  expect(draft.weekdayReviews).toEqual([]);
+  if(field==="room")expect(draft.sessions[0].unconfirmed).toContain("room");
+  else {
+    expect(draft.courses[0][field]).toBe((field==="name"?"Synthetic course":"Synthetic Teacher")+" "+fragment);
+    expect(draft.courses[0].unconfirmed).toContain(field);
+  }
+});
+
+it.each(["legend","total","page"] as const)("D1.2 P2 still excludes structurally separate %s rows",kind=>{
+  const text=(text:string,x:number,y:number):PdfTextItem=>({text,x,y,width:50,height:10,dir:"ltr"});
+  const footer=kind==="legend"?[text("Legend:",0,70),text("Mon = Monday",380,70),text("Tue = Tuesday",500,70)]
+    :kind==="total"?[text("Total credit hours:",0,70),text("3",280,70)]:[text("Page 1 of 1",0,70)];
+  const draft=parseTimetablePages([{items:[
+    text("Course code",0,160),text("Course name",140,160),text("Credits",280,160),text("Day",380,160),text("Time",500,160),text("Room",740,160),
+    text("SYN101",0,140),text("Synthetic course",140,140),text("3",280,140),text("Mon",380,140),text("09:00-10:00",500,140),text("R-1",740,140),
+    ...footer,
+  ]}],base());
+  expect(draft.courses).toHaveLength(1);
+  expect(draft.courses[0]).toMatchObject({code:"SYN101",name:"Synthetic course",registeredHours:3});
+  expect(draft.sessions).toHaveLength(1);
+  expect(draft.sessions[0]).toMatchObject({dayOfWeek:1,startTime:"09:00",endTime:"10:00",room:"R-1"});
+  expect(draft.weekdayReviews).toEqual([]);
+});
+
+it.each(["Advising information: synthetic notice","معلومات إضافية تجريبية"])("D1.2 flags retained unfamiliar trailing text for review: %s",async(pageFooter)=>{
+  const draft=await extract({pageFooter,footerX:120});
+  expect(draft.courses).toHaveLength(2);expect(draft.sessions).toHaveLength(3);
+  expect(draft.courses[1].name).toBe("Synthetic Lab "+pageFooter);
+  expect(draft.courses[1].unconfirmed).toContain("name");
+  expect(draft.courses[0].unconfirmed).not.toContain("name");
+  expect(analyzeDraft(draft).unconfirmed.some(value=>value.includes(draft.courses[1].name))).toBe(true);
+  for(const table of db.tables)expect(await table.count()).toBe(0);
+});
+
+it.each(["name","instructor","room"] as const)("D1.2 preserves footer-like wrapped %s text and subsequent meetings",(field)=>{
+  const text=(text:string,x:number,y:number):PdfTextItem=>({text,x,y,width:50,height:10,dir:"ltr"});
+  const draft=parseTimetablePages([{items:[
+    text("Course code",0,130),text("Course name",140,130),text("Credits",280,130),text("Time",400,130),text("Room",650,130),text("Instructor",800,130),
+    text("SYN101",0,110),text("Synthetic course",140,110),text("3",280,110),text("09:00-10:00 Mon",400,110),text("R-1",650,110),text("Synthetic Teacher",800,110),
+    text("Legend",{name:140,instructor:800,room:650}[field],95),
+    text("11:00-12:00 Tue",400,75),text("R-2",650,75),
+  ]}],base());
+  expect(draft.courses).toHaveLength(1);
+  expect(draft.sessions.map(session=>session.dayOfWeek)).toEqual([1,2]);
+  if(field==="room") {
+    expect(draft.sessions[0].room).toBe("R-1 Legend");
+    expect(draft.sessions[0].unconfirmed).toContain("room");
+    expect(draft.sessions[1].room).toBe("R-2");
+  } else {
+    expect(draft.courses[0][field]).toBe((field==="name"?"Synthetic course":"Synthetic Teacher")+" Legend");
+    expect(draft.courses[0].unconfirmed).toContain(field);
+  }
+});
+
+it("D1.2 preserves wrapped location text through actual PDF.js extraction",async()=>{
+  const draft=await extract({wrappedRoom:true});
+  expect(draft.courses).toHaveLength(2);expect(draft.sessions).toHaveLength(3);
+  expect(draft.sessions.slice(0,2).map(session=>session.room)).toEqual(["R-101 Level 2","R-101 Level 2"]);
+  expect(draft.sessions.slice(0,2).every(session=>session.unconfirmed.includes("room"))).toBe(true);
+  expect(draft.sessions[2].room).toBe("online");expect(draft.sessions[2].unconfirmed).not.toContain("room");
+});
+
+it("D1.2 does not fill a missing meeting room from a different meeting",()=>{
+  const text=(text:string,x:number,y:number):PdfTextItem=>({text,x,y,width:50,height:10,dir:"ltr"});
+  const draft=parseTimetablePages([{items:[
+    text("Course code",0,100),text("Course name",140,100),text("Time",400,100),text("Room",650,100),
+    text("SYN101",0,80),text("Synthetic course",140,80),text("09:00-10:00 Mon",400,80),text("R-1",650,80),
+    text("11:00-12:00 Tue",400,60),
+  ]}],base());
+  expect(draft.sessions[0].room).toBe("R-1");
+  expect(draft.sessions[1].room).toBeNull();
+  expect(draft.sessions[1].unconfirmed).toContain("room");
+  expect(draft.sessions[1].deliveryMode).toBe("");
+});
+
+it.each(["name","instructor"] as const)("D1.2 retains leading unassigned %s text in an incomplete draft row",async(field)=>{
+  const text=(text:string,x:number,y:number):PdfTextItem=>({text,x,y,width:50,height:10,dir:"ltr"});
+  const draft=parseTimetablePages([{items:[
+    text("Course code",0,100),text("Course name",140,100),text("Credits",280,100),text("Time",400,100),text("Room",650,100),text("Instructor",800,100),
+    text(field==="name"?"Synthetic incomplete course":"Synthetic Teacher",field==="name"?140:800,80),
+    text("SYN101",0,55),text("Synthetic complete course",140,55),text("3",280,55),text("09:00-10:00 Mon",400,55),text("R-1",650,55),
+  ]}],base());
+  expect(draft.courses).toHaveLength(2);
+  expect(draft.courses[0][field]).toBe(field==="name"?"Synthetic incomplete course":"Synthetic Teacher");
+  expect(draft.courses[0]).toMatchObject({code:"",registeredHours:NaN});
+  expect(draft.courses[1]).toMatchObject({code:"SYN101",name:"Synthetic complete course",registeredHours:3});
+  await expect(store.reviewTimetable(draft)).rejects.toMatchObject({code:"VALIDATION"});
+  for(const table of db.tables)expect(await table.count()).toBe(0);
+});
+
+it("D1.2 keeps a code-only incomplete course separate and blocks acknowledgment of missing required values",async()=>{
+  const text=(text:string,x:number,y:number):PdfTextItem=>({text,x,y,width:50,height:10,dir:"ltr"});
+  const draft=parseTimetablePages([{items:[
+    text("Course code",0,100),text("Course name",140,100),text("Credits",280,100),text("Time",400,100),text("Room",650,100),
+    text("SYN101",0,80),text("Synthetic course",140,80),text("3",280,80),text("09:00-10:00 Mon",400,80),text("R-1",650,80),
+    text("SYN102",0,55),
+  ]}],base());
+  expect(draft.courses.map(course=>course.code)).toEqual(["SYN101","SYN102"]);
+  expect(draft.courses[1]).toMatchObject({name:"",registeredHours:NaN});
+  expect(draft.courses[1].unconfirmed).toEqual(expect.arrayContaining(["name","registeredHours"]));
+  expect(draft.sessions[1]).toMatchObject({courseKey:draft.courses[1].key,dayOfWeek:0,startTime:"",endTime:""});
+  for(const row of [...draft.courses,...draft.sessions])row.unconfirmed=[];
+  await expect(store.reviewTimetable(draft)).rejects.toMatchObject({code:"VALIDATION"});
+  for(const table of db.tables)expect(await table.count()).toBe(0);
+  Object.assign(draft.courses[1],{name:"Synthetic corrected course",registeredHours:1});
+  Object.assign(draft.sessions[1],{dayOfWeek:2,startTime:"11:00",endTime:"12:00",room:"R-2",deliveryMode:"in-person"});
+  const review=await store.reviewTimetable(draft);
+  expect((await store.saveTimetable(review,confirm(review))).committed).toBe(true);
+  const reopened=await store.reopenImportSource(draft.sourceId);
+  expect(reopened.courses).toHaveLength(2);expect(reopened.sessions).toHaveLength(2);
+  for(const course of reopened.courses)expect(course.id).toBe(review.draft.courses.find(row=>row.code===course.code)!.id);
+});
+
+it("D1.2 retains uncertainty in review snapshots and rolls back stale confirmation before a corrected retry",async()=>{
+  const draft=await extract({pageFooter:"Synthetic advising notice",footerX:120});
+  expect(draft.courses[1].unconfirmed).toContain("name");
+  const original=await store.reviewTimetable(draft);
+  original.draft.courses[1].name="Synthetic corrected lab";
+  expect((await store.saveTimetable(original,confirm(original))).committed).toBe(false);
+  for(const table of db.tables)expect(await table.count()).toBe(0);
+  draft.courses[1].name="Synthetic corrected lab";draft.courses[1].unconfirmed=[];
+  const review=await store.reviewTimetable(draft);
+  expect((await store.saveTimetable(review,confirm(review))).committed).toBe(true);
+  const reopened=await store.reopenImportSource(draft.sourceId);
+  expect(reopened.courses.find(course=>course.code==="SYN102")).toMatchObject({id:review.draft.courses[1].id,name:"Synthetic corrected lab",unconfirmed:[]});
+});
+
 it.each(footerLikeTitles)("retains legitimate footer-like course titles through PDF.js extraction: %s",async(name)=>{
   const draft=await extract({englishTitle:name,arabicTitle:name,arabic:/\p{Script=Arabic}/u.test(name),shuffled:true,registrationDates:["31-08-2026","05-10-2026"]});
   expect(draft.courses.map(course=>course.code)).toEqual(["SYN101","SYN102"]);

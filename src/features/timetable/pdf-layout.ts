@@ -142,18 +142,33 @@ export function parseTimetablePages(pages: PdfTextPage[], base: TimetableDraft):
       return joined(row.filter(item => item.x+item.width/2 >= low && item.x+item.width/2 < high));
     };
     const body = lines(rows.slice(headerIndex+headerRows(headerIndex).length).flat(),columnAt);
+    const textColumns = new Set<Column>(["name","instructor","room"]);
+    const continuationColumns = new Set<Column>([...textColumns,"day","time","start","end"]);
     const footer = (row: PdfTextItem[]) => {
+      // A label inside an academic text cell may be wrapped content rather
+      // than a footer, including a line sharing a day/time cell. Preserve those
+      // column-owned fragments even when their joined text resembles a legend.
+      if (row.some(item => textColumns.has(columns[columnAt(item)].column)) &&
+        row.every(item => continuationColumns.has(columns[columnAt(item)].column))) return false;
       const code = cell(row,"code");
       // A course identifier is not footer prose. Numeric totals may occupy
       // this column, but an actual course row must never be removed by its title.
       if (code && !/^\d+(\.\d+)?$/.test(digits(code)) && !footerText(code,true)) return false;
       return footerText(joined(row));
     };
+    let hasCourseRow = false;
     const anchors = body.flatMap((row,index) => {
       const code = digits(cell(row,"code")).trim();
       if (footer(row)) return [];
-      return (code && (cell(row,"name") || cell(row,"time") || cell(row,"start"))) ||
-        (!code && cell(row,"name") && (/^\d+(\.\d+)?$/.test(digits(cell(row,"hours"))) || /:/.test(cell(row,"time")+cell(row,"start")))) ? [index] : [];
+      // Even a code-only row is academic evidence: keep an incomplete course
+      // for correction instead of appending its identity to the previous one.
+      // Likewise retain leading unowned cells as an invalid draft row; never
+      // silently discard them or attach them to the next course's identity.
+      const startsCourse = code || !hasCourseRow ||
+        (cell(row,"name") && (/^\d+(\.\d+)?$/.test(digits(cell(row,"hours"))) || /:/.test(cell(row,"time")+cell(row,"start"))));
+      if (!startsCourse) return [];
+      hasCourseRow = true;
+      return [index];
     });
     // Overlapping baseline-tolerance windows cannot safely assign offset text
     // to a parent. Aligned close rows are distinct; mixed-baseline close rows
@@ -192,16 +207,32 @@ export function parseTimetablePages(pages: PdfTextPage[], base: TimetableDraft):
         course = { ...candidate, key:"pdf-course:"+crypto.randomUUID(), unconfirmed };
         courses.push(course);
       }
+      // Additional text baselines have uncertain ownership (wrapped content or
+      // unfamiliar trailing prose). Reuse the existing field-review contract.
+      for (const field of ["name","instructor","section"] as const)
+        if (usable.slice(1).some(row => cell(row,field)) && !course.unconfirmed.includes(field)) course.unconfirmed.push(field);
       if (registrationDate && !dateSources.some(row => row.courseKey === course.key && row.sourceText === value("date")))
         dateSources.push({courseKey:course.key,sourceText:value("date"),value:registrationDate});
       let meetingFound = false;
       const meetingRows: PdfTextItem[][] = [];
+      const uncertainRooms = new Set<PdfTextItem[]>();
       for (const row of usable) {
         const fragment = cell(row,"time") + " " + cell(row,"day") + " " + cell(row,"start") + " " + cell(row,"end");
-        if (!fragment.trim()) continue;
-        if (!/\d:\d/.test(digits(fragment)) && meetingRows.length) meetingRows.at(-1)!.push(...row);
+        if (!fragment.trim()) {
+          if (cell(row,"room") && meetingRows.length) {
+            meetingRows.at(-1)!.push(...row); uncertainRooms.add(meetingRows.at(-1)!);
+          }
+          continue;
+        }
+        if (!/\d:\d/.test(digits(fragment)) && meetingRows.length) {
+          meetingRows.at(-1)!.push(...row);
+          if (cell(row,"room")) uncertainRooms.add(meetingRows.at(-1)!);
+        }
         else meetingRows.push([...row]);
       }
+      // Only a location detached from every meeting can be a shared candidate.
+      // Never fill one meeting's missing room from another meeting's own cell.
+      const sharedRoom = meetingRows.every(row => !cell(row,"room")) ? value("room") || null : null;
       for (const row of meetingRows) {
         const timeText = [cell(row,"time"),cell(row,"start"),cell(row,"end")].filter(Boolean).join(" ");
         if (!timeText && !cell(row,"day")) continue;
@@ -212,10 +243,10 @@ export function parseTimetablePages(pages: PdfTextPage[], base: TimetableDraft):
           key: "pdf-weekdays:"+crypto.randomUUID(), courseKey: course.key,
           ...parsedDays, acknowledged: false,
         });
-        const room = cell(row,"room") || value("room") || null;
+        const room = cell(row,"room") || sharedRoom;
         const online = /online|الكتروني|عن بعد/i.test(clean(room ?? "")+" "+clean(timeText));
         const invalidRange = !slot || slot[0] >= slot[1];
-        const unknown = [invalidRange && "startTime", invalidRange && "endTime", !weeklyDays.length && "dayOfWeek", !room && "room", !room && !online && "deliveryMode"].filter((v): v is string => !!v);
+        const unknown = [invalidRange && "startTime", invalidRange && "endTime", !weeklyDays.length && "dayOfWeek", (!room || uncertainRooms.has(row) || !cell(row,"room") && !!sharedRoom) && "room", !room && !online && "deliveryMode"].filter((v): v is string => !!v);
         for (const dayOfWeek of weeklyDays.length ? weeklyDays : [0]) {
           sessions.push({ key:"pdf-session:"+crypto.randomUUID(), courseKey:course.key, dayOfWeek, startTime:slot?.[0]??"", endTime:slot?.[1]??"", room, deliveryMode:online?"online":room?"in-person":"", notes:unknown.length ? timeText : null, unconfirmed:[...unknown] });
         }
