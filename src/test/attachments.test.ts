@@ -8,6 +8,7 @@ import {
   FILE_ACCEPT,
   MAX_FILE_BYTES,
   fileProblem,
+  mediaPreview,
 } from "../features/lectures/files";
 let db: UniCoreDatabase,
   store: AcademicStore,
@@ -46,6 +47,27 @@ afterEach(async () => {
   await db.delete();
 });
 describe("lecture attachment storage", () => {
+  it.each([".constructor", ".CONSTRUCTOR", ".__proto__"])("rejects inherited extension %s without writes", async name => {
+    const original = input();
+    await store.attachLectureFiles(lectureId, [original]);
+    const before = await Promise.all(db.tables.map(table => table.toArray()));
+    const result = await store.attachLectureFiles(lectureId, [input(name, "rejected bytes", "application/octet-stream")]);
+    expect(result).toMatchObject([{ status: "failed", problem: "unsupported" }]);
+    expect(await Promise.all(db.tables.map(table => table.toArray()))).toEqual(before);
+    expect(await (await store.lectureFiles.get(original.id))!.blob.arrayBuffer()).toEqual(await original.blob.arrayBuffer());
+  });
+
+  it("reads legacy unsupported metadata after reopen without repairing records or bytes", async () => {
+    const file = await store.lectureFiles.create({ lectureId, fileName: ".constructor", blob: new Blob([new Uint8Array([0, 128, 255])], { type: "application/octet-stream" }) });
+    const original = await store.lectureFiles.get(file.id);
+    store.close(); store = new AcademicStore(new UniCoreDatabase(db.name));
+    const workspace = await store.getLectureWorkspace(lectureId);
+    expect(workspace.files.map(row => row.id)).toEqual([file.id]);
+    expect(mediaPreview(workspace.files[0].fileName, workspace.files[0].mimeType)).toBeUndefined();
+    expect(await store.lectureFiles.get(file.id)).toEqual(original);
+    expect(await (await store.lectureFiles.get(file.id))!.blob.arrayBuffer()).toEqual(await original!.blob.arrayBuffer());
+  });
+
   it("creates only explicit lectures with valid parent references and session relationships", async () => {
     expect((await store.getLectureWorkspace()).lectures).toHaveLength(1);
     await expect(
@@ -220,6 +242,23 @@ describe("lecture notes persisted locally", () => {
 });
 
 describe("file acceptance policy", () => {
+  it.each([".constructor", ".CONSTRUCTOR", ".toString", ".ToString", ".valueOf", ".ValueOf", ".__proto__"])("rejects non-allowlisted extension %s for every MIME policy branch", name => {
+    for (const type of ["", "application/octet-stream", "text/plain"])
+      expect(fileProblem(name, new Blob(["synthetic bytes"], { type }))).toBe("unsupported");
+    for (const type of ["", "application/octet-stream", "image/png"])
+      expect(mediaPreview(name, type)).toBeUndefined();
+  });
+
+  it("preserves generic MIME and explicit MIME behavior for supported extensions", () => {
+    for (const type of ["", "application/octet-stream", "image/png", "IMAGE/PNG; charset=binary"]) {
+      expect(fileProblem("synthetic.PNG", new Blob(["image bytes"], { type }))).toBeUndefined();
+      expect(mediaPreview("synthetic.PNG", type)).toEqual({ kind: "image", mime: "image/png" });
+    }
+    expect(fileProblem("synthetic.PNG", new Blob(["x"], { type: "text/plain" }))).toBe("mime");
+    expect(mediaPreview("synthetic.PNG", "text/plain")).toBeUndefined();
+    expect(mediaPreview("synthetic.pdf", "application/octet-stream")).toBeUndefined();
+  });
+
   it.each([
     ["lecture.MP3", "audio/mpeg"],
     ["record.wav", "audio/x-wav"],

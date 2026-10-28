@@ -259,6 +259,68 @@ describe("lecture workspace notes and course navigation", () => {
 });
 
 describe("safe local attachment preview", () => {
+  it("keeps legacy inherited-extension files available across refresh and remount without unsafe previews or writes", async () => {
+    const f = fixture();
+    const file = { ...meta, id: "legacy-file", lectureId: lecture.id, fileName: ".constructor", mimeType: "application/octet-stream", fileSize: 3 };
+    f.read.mockImplementation(async () => ({ courses: [course], lectures: [lecture], lecture, sessions: [], files: [file] }));
+    const v = view(f);
+    await screen.findByLabelText("Lecture notes");
+    expect(screen.getByText(".constructor")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Preview media" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(f.read).toHaveBeenCalledTimes(2));
+    await screen.findByLabelText("Lecture notes");
+    v.unmount(); view(f); await screen.findByLabelText("Lecture notes");
+    expect(screen.getByText(".constructor")).toBeInTheDocument();
+    expect(f.get).not.toHaveBeenCalled(); expect(f.create).not.toHaveBeenCalled();
+    expect(f.update).not.toHaveBeenCalled(); expect(f.remove).not.toHaveBeenCalled(); expect(f.upload).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [null, ""], [{ corrupt: true }, "application/octet-stream"],
+    ["legacy.png", { corrupt: true }], ["legacy.png", undefined],
+  ])("contains malformed filename/MIME metadata %j / %j without losing notes or file actions", async (fileName, mimeType) => {
+    const f = fixture();
+    const file = { ...meta, id: "legacy-file", lectureId: lecture.id, fileName, mimeType, fileSize: 3 } as unknown as Omit<LectureFile, "blob">;
+    f.read.mockImplementation(async () => ({ courses: [course], lectures: [lecture], lecture, sessions: [], files: [file] }));
+    const v = view(f); await screen.findByLabelText("Lecture notes");
+    expect(screen.queryByRole("button", { name: "Preview media" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Remove attachment" }));
+    expect(screen.getByRole("region", { name: "Confirm removal" })).toBeInTheDocument();
+    v.unmount(); view(f); await screen.findByLabelText("Lecture notes");
+    expect(f.get).not.toHaveBeenCalled(); expect(f.update).not.toHaveBeenCalled();
+    expect(f.remove).not.toHaveBeenCalled(); expect(f.upload).not.toHaveBeenCalled();
+  });
+
+  it("downloads legacy malformed filenames with a binary fallback without changing bytes or metadata", async () => {
+    const f = fixture();
+    const file = Object.freeze({ ...meta, id: "legacy-file", lectureId: lecture.id, fileName: null as unknown as string, mimeType: "application/octet-stream", fileSize: 3 });
+    const original = new Blob([new Uint8Array([0, 128, 255])], { type: "application/octet-stream" });
+    f.read.mockImplementation(async () => ({ courses: [course], lectures: [lecture], lecture, sessions: [], files: [file] }));
+    f.get.mockResolvedValue(Object.freeze({ ...file, blob: original }));
+    const create = vi.fn((_blob: Blob) => { void _blob; return "blob:legacy-download"; }), revoke = vi.fn();
+    vi.stubGlobal("URL", class extends URL { static createObjectURL = create; static revokeObjectURL = revoke; });
+    const names: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { names.push(this.download); });
+    const v = view(f);
+    fireEvent.click(await screen.findByRole("button", { name: "Download" }));
+    await waitFor(() => expect(names).toEqual(["attachment"]));
+    expect(create.mock.calls[0][0].type).toBe("application/octet-stream");
+    const reader = new FileReader();
+    const bytes = new Promise<ArrayBuffer>((resolve, reject) => {
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(reader.error);
+    });
+    reader.readAsArrayBuffer(create.mock.calls[0][0]);
+    expect(new Uint8Array(await bytes)).toEqual(new Uint8Array([0, 128, 255]));
+    expect(file.fileName).toBeNull();
+    expect(f.get).toHaveBeenCalledExactlyOnceWith(file.id);
+    expect(f.update).not.toHaveBeenCalled(); expect(f.remove).not.toHaveBeenCalled(); expect(f.upload).not.toHaveBeenCalled();
+    v.unmount(); expect(revoke).toHaveBeenCalledWith("blob:legacy-download");
+  });
+
   it("loads media only on request, checks its parent, and revokes the URL on close", async () => {
     const f = fixture();
     const file = { ...meta, id: "image-file", lectureId: lecture.id, fileName: "synthetic.png", mimeType: "image/png", fileSize: 5 };

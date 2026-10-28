@@ -224,7 +224,8 @@ function LectureWorkspace({ store, route }: { store: Store; route?: RouteSelecti
         );
         const a = document.createElement("a");
         a.href = url;
-        a.download = Array.from(file.fileName).map(character => character.charCodeAt(0)<32 || character==='/' || character==='\\' ? '_' : character).join('');
+        const name = typeof file.fileName === "string" ? file.fileName : "attachment";
+        a.download = Array.from(name).map(character => character.charCodeAt(0)<32 || character==='/' || character==='\\' ? '_' : character).join('');
         document.body.append(a);
         try {
           a.click();
@@ -476,43 +477,47 @@ function LectureWorkspace({ store, route }: { store: Store; route?: RouteSelecti
             </section>
           )}
           <ul className="managed-sessions">
-            {data.files.map((file) => (
-              <li key={file.id} className="managed-session">
-                <div>
-                  <strong>
-                    <bdi>{file.fileName}</bdi>
-                  </strong>
-                  <p>
-                    {t.type}:{" "}
-                    <bdi>{file.mimeType || file.fileName.split(".").pop()}</bdi>{" "}
-                    · {t.sizeLabel}: {numberLabel(file.fileSize)} B
-                  </p>
-                  <p>
-                    {t.uploaded}:{" "}
-                    {dateLabel(new Date(file.createdAt), {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </p>
-                </div>
-                <div className="management-actions">
-                  {mediaPreview(file.fileName, file.mimeType) && <LectureMedia id={file.id} lectureId={opened} store={store} disabled={disabled} />}
-                  <button
-                    disabled={disabled}
-                    onClick={() => void download(file.id)}
-                  >
-                    {t.download}
-                  </button>
-                  <button
-                    className="remove-draft"
-                    disabled={disabled}
-                    onClick={() => setRemoval({ kind: "file", record: file })}
-                  >
-                    {t.removeFile}
-                  </button>
-                </div>
-              </li>
-            ))}
+            {data.files.map((file) => {
+              const name = typeof file.fileName === "string" ? file.fileName : "";
+              const mime = typeof file.mimeType === "string" ? file.mimeType : "";
+              return (
+                <li key={file.id} className="managed-session">
+                  <div>
+                    <strong>
+                      <bdi>{name || t.unsupported}</bdi>
+                    </strong>
+                    <p>
+                      {t.type}:{" "}
+                      <bdi>{mime || name.split(".").pop() || "—"}</bdi>{" "}
+                      · {t.sizeLabel}: {numberLabel(file.fileSize)} B
+                    </p>
+                    <p>
+                      {t.uploaded}:{" "}
+                      {dateLabel(new Date(file.createdAt), {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                  </div>
+                  <div className="management-actions">
+                    {mediaPreview(file.fileName, file.mimeType) && <LectureMedia id={file.id} lectureId={opened} store={store} disabled={disabled} />}
+                    <button
+                      disabled={disabled}
+                      onClick={() => void download(file.id)}
+                    >
+                      {t.download}
+                    </button>
+                    <button
+                      className="remove-draft"
+                      disabled={disabled}
+                      onClick={() => setRemoval({ kind: "file", record: file })}
+                    >
+                      {t.removeFile}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
           {!data.files.length && <p>{t.noFiles}</p>}
         </section>
@@ -524,7 +529,7 @@ function LectureWorkspace({ store, route }: { store: Store; route?: RouteSelecti
           <p>
             <bdi>
               {removal.kind === "file"
-                ? removal.record.fileName
+                ? typeof removal.record.fileName === "string" ? removal.record.fileName : t.unsupported
                 : removal.record.date}
             </bdi>
           </p>

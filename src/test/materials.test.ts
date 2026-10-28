@@ -55,9 +55,19 @@ describe("transactional local material library", () => {
   });
   it.each([
     ["unsafe.html", "text/html"], ["../notes.txt", "text/plain"], ["unsafe.svg", "image/svg+xml"], ["notes.pdf", "text/html"],
+    [".constructor", "application/octet-stream"], [".CONSTRUCTOR", ""], [".toString", "application/octet-stream"], [".valueOf", "application/octet-stream"], [".__proto__", "application/octet-stream"],
   ])("rejects invalid name/type %s without any writes", async (name, type) => {
     const before = await snapshot(); await expect(store.saveMaterial(candidate([file(name, "bytes", type)]))).rejects.toMatchObject({ code: "VALIDATION" });
     expect(await snapshot()).toEqual(before);
+  });
+  it("rejects a mixed valid/inherited-extension batch without changing existing materials or bytes", async () => {
+    const original = file("original.pdf", new Uint8Array([0, 128, 255]), "application/pdf");
+    const saved = candidate([original]); await store.saveMaterial(saved);
+    const before = await snapshot();
+    await expect(store.saveMaterial(candidate([file(), file(".constructor", "rejected bytes", "application/octet-stream")]))).rejects.toMatchObject({ code: "VALIDATION" });
+    expect(await snapshot()).toEqual(before);
+    const recovered = await store.getMaterialFile(termId, saved.id, original.id);
+    expect(await recovered.blob.arrayBuffer()).toEqual(await original.blob.arrayBuffer());
   });
   it("rejects empty and oversized files without partial writes", async () => {
     const large = file(); vi.spyOn(large.blob, "size", "get").mockReturnValue(MAX_FILE_BYTES + 1);
