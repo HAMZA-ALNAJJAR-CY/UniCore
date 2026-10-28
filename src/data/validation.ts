@@ -1,8 +1,9 @@
-import type { Entities, EntityName } from "./models";
+import type { CreateInput, Entities, EntityName } from "./models";
 import { DataError } from "./errors";
 import { canonicalUuid } from "./identity";
+import { assertNever } from "./entity-integrity";
 
-const fields: Record<EntityName, readonly string[]> = {
+export const INPUT_FIELDS = {
   academicTerms: [
     "name",
     "academicYear",
@@ -46,7 +47,14 @@ const fields: Record<EntityName, readonly string[]> = {
   lectureFiles: ["lectureId", "fileName", "blob"],
   materials: ["courseId", "title", "description", "category"],
   materialFiles: ["materialId", "fileName", "blob"],
-};
+} as const satisfies { [K in EntityName]: readonly (keyof CreateInput<K> & string)[] };
+
+type RequireComplete<T extends never> = T;
+// CreateInput excludes immutable metadata and Blob-derived size/MIME fields.
+// Every remaining field, including optional fields, must be registered here.
+export type InputFieldCoverage = RequireComplete<{
+  [K in EntityName]: Exclude<keyof CreateInput<K>, (typeof INPUT_FIELDS)[K][number]>
+}[EntityName]>;
 
 export function invalid(message: string): never {
   throw new DataError("VALIDATION", message);
@@ -59,8 +67,9 @@ export function uuid(value: unknown): asserts value is string {
 export function assertInput(kind: EntityName, value: unknown) {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     invalid("Record input must be an object.");
+  const allowedFields: readonly string[] = INPUT_FIELDS[kind];
   for (const key of Object.keys(value)) {
-    if (!fields[kind].includes(key))
+    if (!allowedFields.includes(key))
       invalid(`Unsupported or immutable field: ${key}`);
   }
 }
@@ -96,7 +105,7 @@ function times(start: unknown, end: unknown, required: boolean) {
 /** Runtime validation protects JS callers as well as typed callers. */
 export function validate<K extends EntityName>(kind: K, record: Entities[K]) {
   const value = record as unknown as Record<string, unknown>;
-  for (const key of fields[kind]) {
+  for (const key of INPUT_FIELDS[kind]) {
     if (
       [
         "instructor",
@@ -184,5 +193,7 @@ export function validate<K extends EntityName>(kind: K, record: Entities[K]) {
       if (!(value.blob instanceof Blob))
         invalid("An actual Blob is required for file content.");
       break;
+    default:
+      assertNever(kind);
   }
 }

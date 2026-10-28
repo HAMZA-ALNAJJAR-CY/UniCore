@@ -4,7 +4,10 @@ import Dexie from "dexie";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SCHEMA_V1, UniCoreDatabase } from "../data/database";
 import { AcademicStore, type RelatedBatch } from "../data/store";
-import { canonicalUuid } from "../data/identity";
+import { canonicalUuid, ID_FIELDS } from "../data/identity";
+import { DELETION_LINKS, ENTITY_INSERT_ORDER, ENTITY_ORDER } from "../data/entity-integrity";
+import { INPUT_FIELDS, validate } from "../data/validation";
+import { DataError } from "../data/errors";
 import type { Entities, EntityName } from "../data/models";
 
 let db: UniCoreDatabase;
@@ -757,5 +760,86 @@ describe("Atomic service operations and attachment queries", () => {
     expect(
       await store.materialFiles.list({ materialId: ids.lectures }),
     ).toEqual([]);
+  });
+});
+
+describe("Exhaustive entity registration", () => {
+  it("registers every domain table, input contract, identity rule and public repository", async () => {
+    await store.open();
+    const expected = [...kinds].sort();
+    expect([...ENTITY_INSERT_ORDER]).toEqual(kinds);
+    expect(Object.keys(ENTITY_ORDER).sort()).toEqual(expected);
+    expect(Object.keys(DELETION_LINKS).sort()).toEqual(expected);
+    expect(Object.keys(ID_FIELDS).sort()).toEqual(expected);
+    expect(Object.keys(INPUT_FIELDS).sort()).toEqual(expected);
+    expect(db.tables.map(table => table.name).sort()).toEqual([...expected, "importMappings"].sort());
+    expect(db.verno).toBe(3);
+    for (const kind of kinds) {
+      expect(store[kind]).toEqual(expect.objectContaining({
+        create: expect.any(Function), get: expect.any(Function), list: expect.any(Function),
+        update: expect.any(Function), delete: expect.any(Function),
+        previewDelete: expect.any(Function), bulkUpsert: expect.any(Function),
+      }));
+      expect(ID_FIELDS[kind]).toContain("id");
+      expect(new Set(ID_FIELDS[kind]).size).toBe(ID_FIELDS[kind].length);
+      expect(new Set(INPUT_FIELDS[kind]).size).toBe(INPUT_FIELDS[kind].length);
+    }
+    expect(DELETION_LINKS.lectureFiles).toEqual([]);
+    expect(DELETION_LINKS.materialFiles).toEqual([]);
+  });
+
+  it("orders every parent before its children and links every registered foreign UUID exactly once", () => {
+    const ranks = Object.values(ENTITY_ORDER);
+    expect(ranks.every(rank => Number.isInteger(rank) && rank >= 0)).toBe(true);
+    expect(new Set(ranks).size).toBe(kinds.length);
+    for (const child of kinds) {
+      const references = (ID_FIELDS[child] as readonly string[]).filter(field => field !== "id").sort();
+      const linked: string[] = [];
+      for (const parent of kinds) {
+        for (const link of DELETION_LINKS[parent]) {
+          if (link.child !== child) continue;
+          expect(ENTITY_ORDER[parent]).toBeLessThan(ENTITY_ORDER[child]);
+          linked.push(link.field);
+        }
+      }
+      expect(linked.sort()).toEqual(references);
+    }
+  });
+
+  const invalidFields: { [K in EntityName]: { field: keyof Entities[K]; value: unknown } } = {
+    academicTerms: { field: "name", value: "" },
+    courses: { field: "registeredHours", value: -1 },
+    scheduleSessions: { field: "dayOfWeek", value: 99 },
+    lectures: { field: "date", value: "2030-02-30" },
+    materials: { field: "title", value: "" },
+    lectureFiles: { field: "blob", value: "not a Blob" },
+    materialFiles: { field: "blob", value: "not a Blob" },
+  };
+  it.each(kinds)("rejects invalid domain data for registered %s", kind => {
+    const { batch } = graph();
+    const record = {
+      ...batch[kind][0], createdAt: 1, updatedAt: 1, deletedAt: null, revision: 1,
+      [invalidFields[kind].field]: invalidFields[kind].value,
+    } as Entities[EntityName];
+    expect(() => validate(kind, record)).toThrow(DataError);
+  });
+
+  it("traverses every declared persisted child without changing revisions, records or bytes", async () => {
+    const { ids, batch } = graph();
+    expect((await store.createRelated(batch)).committed).toBe(true);
+    const before = await Promise.all(db.tables.map(table => table.toArray()));
+    const whole = await store.academicTerms.previewDelete(ids.academicTerms);
+    expect(whole.map(row => row.kind).sort()).toEqual([...kinds].sort());
+    expect(new Set(whole.map(row => row.kind + ":" + row.id)).size).toBe(kinds.length);
+    for (const kind of kinds) {
+      const graph = await store[kind].previewDelete(ids[kind]);
+      expect(graph).toContainEqual({ kind, id: ids[kind], revision: 1 });
+      for (const link of DELETION_LINKS[kind])
+        expect(graph).toContainEqual({ kind: link.child, id: ids[link.child], revision: 1 });
+      if (!DELETION_LINKS[kind].length) expect(graph).toHaveLength(1);
+    }
+    expect(await Promise.all(db.tables.map(table => table.toArray()))).toEqual(before);
+    expect(await (await store.lectureFiles.get(ids.lectureFiles))!.blob.text()).toBe("original lecture bytes");
+    expect(await (await store.materialFiles.get(ids.materialFiles))!.blob.text()).toBe("original material bytes");
   });
 });

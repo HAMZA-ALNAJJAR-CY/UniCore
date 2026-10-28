@@ -3,6 +3,7 @@ import type { TransactionMode } from "dexie";
 import { UniCoreDatabase } from "./database";
 import { DataError, translateStorageError, type DataErrorCode } from "./errors";
 import { canonicalUuid, normalizeIds } from "./identity";
+import { assertNever, DELETION_LINKS, ENTITY_INSERT_ORDER } from "./entity-integrity";
 import type {
   BulkInput,
   CreateInput,
@@ -61,7 +62,7 @@ class RejectedBatch extends DataError {
   }
 }
 
-export class AcademicStore {
+export class AcademicStore implements Record<EntityName, unknown> {
   readonly academicTerms = this.repository("academicTerms");
   readonly courses = this.repository("courses");
   readonly scheduleSessions = this.repository("scheduleSessions");
@@ -565,15 +566,7 @@ export class AcademicStore {
   createRelated(batch: RelatedBatch): Promise<BulkResult> {
     if (typeof batch !== "object" || batch === null || Array.isArray(batch))
       invalid("Related batch must be an object of entity arrays.");
-    const order: EntityName[] = [
-      "academicTerms",
-      "courses",
-      "scheduleSessions",
-      "lectures",
-      "materials",
-      "lectureFiles",
-      "materialFiles",
-    ];
+    const order = ENTITY_INSERT_ORDER;
     for (const key of Object.keys(batch)) {
       if (!order.includes(key as EntityName))
         invalid(`Unsupported entity batch: ${key}`);
@@ -637,15 +630,27 @@ export class AcademicStore {
   ): Entities[K] {
     record = normalizeIds(kind, record);
     validate(kind, record);
-    if (kind === "courses") {
-      const course = record as Entities["courses"];
-      course.code = course.code.trim().toUpperCase();
-    }
-    if (kind === "lectureFiles" || kind === "materialFiles") {
-      const file = record as
-        Entities["lectureFiles"] | Entities["materialFiles"];
-      file.fileSize = file.blob.size;
-      file.mimeType = file.blob.type;
+    switch (kind) {
+      case "courses": {
+        const course = record as Entities["courses"];
+        course.code = course.code.trim().toUpperCase();
+        break;
+      }
+      case "lectureFiles":
+      case "materialFiles": {
+        const file = record as Entities["lectureFiles"] | Entities["materialFiles"];
+        file.fileSize = file.blob.size;
+        file.mimeType = file.blob.type;
+        break;
+      }
+      // These entities need UUID normalization/validation only.
+      case "academicTerms":
+      case "scheduleSessions":
+      case "lectures":
+      case "materials":
+        break;
+      default:
+        assertNever(kind);
     }
     return record;
   }
@@ -656,6 +661,7 @@ export class AcademicStore {
   ) {
     switch (kind) {
       case "academicTerms":
+        // Explicit root: no parent relationships to check.
         break;
       case "courses": {
         const course = record as Entities["courses"];
@@ -739,18 +745,33 @@ export class AcademicStore {
           (record as Entities["materialFiles"]).materialId,
         );
         break;
+      default:
+        assertNever(kind);
     }
   }
 
   private async codeOwner<K extends EntityName>(kind: K, record: Entities[K]) {
-    if (kind !== "courses") return undefined;
-    const course = record as Entities["courses"];
-    // Tombstones retain code reservations to avoid confusing future restore/sync.
-    return this.database
-      .records("courses")
-      .where("[academicTermId+code]")
-      .equals([course.academicTermId, course.code])
-      .first();
+    switch (kind) {
+      case "courses": {
+        const course = record as Entities["courses"];
+        // Tombstones retain code reservations to avoid confusing future restore/sync.
+        return this.database
+          .records("courses")
+          .where("[academicTermId+code]")
+          .equals([course.academicTermId, course.code])
+          .first();
+      }
+      // Explicitly UUID-only: these entities have no additional natural key.
+      case "academicTerms":
+      case "scheduleSessions":
+      case "lectures":
+      case "materials":
+      case "lectureFiles":
+      case "materialFiles":
+        return undefined;
+      default:
+        return assertNever(kind);
+    }
   }
 
   private async insert<K extends EntityName>(
@@ -786,23 +807,7 @@ export class AcademicStore {
     if (collected.has(key)) return [...collected.values()];
     const current = await this.active(kind, id);
     collected.set(key, { kind, id, revision: current.revision });
-    const links: Partial<
-      Record<EntityName, { child: EntityName; field: string }[]>
-    > = {
-      academicTerms: [
-        { child: "courses", field: "academicTermId" },
-        { child: "scheduleSessions", field: "academicTermId" },
-      ],
-      courses: [
-        { child: "scheduleSessions", field: "courseId" },
-        { child: "lectures", field: "courseId" },
-        { child: "materials", field: "courseId" },
-      ],
-      scheduleSessions: [{ child: "lectures", field: "scheduleSessionId" }],
-      lectures: [{ child: "lectureFiles", field: "lectureId" }],
-      materials: [{ child: "materialFiles", field: "materialId" }],
-    };
-    for (const { child, field } of links[kind] ?? []) {
+    for (const { child, field } of DELETION_LINKS[kind]) {
       const records = await this.database
         .records(child)
         .where(field)

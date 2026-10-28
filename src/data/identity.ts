@@ -1,7 +1,10 @@
 import { DataError } from "./errors";
-import type { EntityName } from "./models";
+import type { Entities, EntityName } from "./models";
 
-export const ID_FIELDS: Record<EntityName, readonly string[]> = {
+// Persisted identities use the existing id / *Id property convention.
+type IdentityField<K extends EntityName> = Extract<keyof Entities[K], "id" | `${string}Id`>;
+
+export const ID_FIELDS = {
   academicTerms: ["id"],
   courses: ["id", "academicTermId"],
   scheduleSessions: ["id", "academicTermId", "courseId"],
@@ -9,7 +12,13 @@ export const ID_FIELDS: Record<EntityName, readonly string[]> = {
   lectureFiles: ["id", "lectureId"],
   materials: ["id", "courseId"],
   materialFiles: ["id", "materialId"],
-};
+} as const satisfies { [K in EntityName]: readonly ["id", ...Exclude<IdentityField<K>, "id">[]] };
+
+type RequireComplete<T extends never> = T;
+/** Type-only check: adding a reference also requires UUID normalization coverage. */
+export type IdentityFieldCoverage = RequireComplete<{
+  [K in EntityName]: Exclude<IdentityField<K>, (typeof ID_FIELDS)[K][number]>
+}[EntityName]>;
 
 export function canonicalUuid(value: unknown): string {
   if (
