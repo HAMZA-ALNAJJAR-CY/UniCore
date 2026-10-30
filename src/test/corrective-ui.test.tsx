@@ -50,6 +50,156 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+const caseTermA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const caseTermB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const mixedCaseTermA = "aAaAaAaA-aAaA-4aAa-8aAa-aAaAaAaAaAaA";
+async function caseTerms() {
+  expect((await store.createRelated({
+    academicTerms: [
+      { id: caseTermA, name: "Case term A", academicYear: "2040/2041", semester: 1 },
+      { id: caseTermB, name: "Case term B", academicYear: "2041/2042", semester: 1 },
+    ],
+    courses: [
+      { id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", academicTermId: caseTermA, code: "CASE-A", name: "Case course A", registeredHours: 2 },
+      { id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", academicTermId: caseTermB, code: "CASE-B", name: "Case course B", registeredHours: 2 },
+    ],
+  })).committed).toBe(true);
+  return { a: await store.getTimetable(caseTermA), b: await store.getTimetable(caseTermB) };
+}
+async function storedRecords() {
+  const db = new Dexie(name);
+  try {
+    await db.open();
+    return await Promise.all(db.tables.map(async table => ({ name: table.name, records: await table.toArray() })));
+  } finally { db.close(); }
+}
+
+it.each([
+  ["lowercase", caseTermA], ["uppercase", caseTermA.toUpperCase()], ["mixed-case", mixedCaseTermA],
+])("resolves a delayed %s Courses term deep link and its reload without writes", async (_label, requested) => {
+  const { a, b } = await caseTerms(), before = await storedRecords();
+  expect((await store.getTimetable()).termId).toBe(b.termId);
+  const pending = deferred<typeof a>();
+  const read = vi.spyOn(store, "getTimetable").mockImplementationOnce(() => pending.promise);
+  const path = "/courses?term=" + requested + "&retained=1#main-content";
+  const mount = () => {
+    const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], { initialEntries: [path] });
+    return { router, view: render(<RouterProvider router={router} />) };
+  };
+  const first = mount();
+  expect(screen.getByText(t.loading)).toHaveAttribute("role", "status");
+  expect(screen.getByRole("button", { name: t.retry })).toBeDisabled();
+  await act(async () => pending.resolve(a));
+  await screen.findByRole("rowgroup", { name: a.courses[0].name });
+  await waitFor(() => expect(screen.queryByText(t.loading)).not.toBeInTheDocument());
+  expect(screen.getByLabelText(t.term)).toHaveValue(a.termId);
+  expect(screen.getByRole("button", { name: t.retry })).toBeEnabled();
+  expect(screen.queryByRole("rowgroup", { name: b.courses[0].name })).not.toBeInTheDocument();
+  expect(first.router.state.location.search).toBe("?term=" + requested + "&retained=1");
+  expect(first.router.state.location.hash).toBe("#main-content");
+  first.view.unmount(); first.router.dispose();
+  const second = mount();
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  expect(screen.getByLabelText(t.term)).toHaveValue(a.termId);
+  expect(screen.getByRole("rowgroup", { name: a.courses[0].name })).toBeInTheDocument();
+  expect(read.mock.calls.every(([id]) => id === caseTermA)).toBe(true);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(await storedRecords()).toEqual(before);
+  second.view.unmount(); second.router.dispose();
+});
+
+it.each(["invalid", "missing", "deleted"] as const)("retains actionable recovery for a %s case-variant term link", async kind => {
+  const { b } = await caseTerms();
+  let requested = kind === "invalid" ? "INVALID" : "EEEEEEEE-EEEE-4EEE-8EEE-EEEEEEEEEEEE";
+  if (kind === "deleted") {
+    const id = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    await store.createRelated({ academicTerms: [{ id, name: "Removed case term", academicYear: "2039/2040", semester: 1 }] });
+    await store.academicTerms.delete(id, { expectedRevision: 1 });
+    requested = id.toUpperCase();
+  }
+  const before = await storedRecords();
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], { initialEntries: ["/courses?term=" + requested] });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("alert");
+  expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+  expect(router.state.location.search).toBe("?term=" + requested);
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  expect(screen.getByLabelText(t.term)).toHaveValue(b.termId);
+  expect(router.state.location.search).toBe("?term=" + b.termId);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(await storedRecords()).toEqual(before);
+  view.unmount(); router.dispose();
+});
+
+it("finishes missing-term recovery with an empty state when no default term exists", async () => {
+  await store.open(); const before = await storedRecords();
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], { initialEntries: ["/courses?term=" + caseTermA.toUpperCase() + "&retained=1#main-content"] });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("alert");
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  await screen.findByText(t.noTerm);
+  await waitFor(() => expect(screen.queryByText(t.loading)).not.toBeInTheDocument());
+  expect(screen.getByRole("button", { name: t.retry })).toBeEnabled();
+  expect(router.state.location.search).toBe("?retained=1");
+  expect(router.state.location.hash).toBe("#main-content");
+  expect(await storedRecords()).toEqual(before);
+  view.unmount(); router.dispose();
+});
+
+it.each(["resolve", "reject"] as const)("ignores an older case-variant read that %ss after rapid A/B/A navigation", async outcome => {
+  const { a, b } = await caseTerms(), before = await storedRecords();
+  const oldA = deferred<typeof a>(), oldB = deferred<typeof b>(), latestA = deferred<typeof a>();
+  const read = vi.spyOn(store, "getTimetable").mockImplementationOnce(() => oldA.promise)
+    .mockImplementationOnce(() => oldB.promise).mockImplementationOnce(() => latestA.promise);
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], { initialEntries: ["/courses?term=" + caseTermA.toUpperCase()] });
+  const view = render(<RouterProvider router={router} />);
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+  await act(async () => { await router.navigate("/courses?term=" + caseTermB.toUpperCase()); });
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+  await act(async () => { await router.navigate("/courses?term=" + mixedCaseTermA); });
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(3));
+  expect(screen.getByText(t.loading)).toBeInTheDocument();
+  await act(async () => latestA.resolve(a));
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  await act(async () => {
+    if (outcome === "resolve") oldA.resolve({ ...a, courses: [{ ...a.courses[0], name: "Stale case course" }] });
+    else oldA.reject(new DataError("UNAVAILABLE", "Stale case read failure"));
+    oldB.resolve(b);
+  });
+  expect(screen.getByLabelText(t.term)).toHaveValue(a.termId);
+  expect(screen.getByRole("rowgroup", { name: a.courses[0].name })).toBeInTheDocument();
+  expect(screen.queryByRole("rowgroup", { name: "Stale case course" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("rowgroup", { name: b.courses[0].name })).not.toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+  expect(router.state.location.search).toBe("?term=" + mixedCaseTermA);
+  expect(read.mock.calls.map(([id]) => id)).toEqual([caseTermA, caseTermB, caseTermA]);
+  expect(await storedRecords()).toEqual(before);
+  view.unmount(); router.dispose();
+});
+
+it("retries an uppercase nondefault term after a genuine storage failure without default fallback", async () => {
+  const { a } = await caseTerms(), before = await storedRecords();
+  const initial = deferred<typeof a>(), retry = deferred<typeof a>();
+  const read = vi.spyOn(store, "getTimetable").mockImplementationOnce(() => initial.promise).mockImplementationOnce(() => retry.promise);
+  const path = "/courses?term=" + caseTermA.toUpperCase();
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], { initialEntries: [path] });
+  const view = render(<RouterProvider router={router} />);
+  await act(async () => initial.reject(new DataError("UNAVAILABLE", "Synthetic storage failure")));
+  await screen.findByRole("alert");
+  expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  await act(async () => retry.resolve(a));
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  expect(screen.getByLabelText(t.term)).toHaveValue(a.termId);
+  expect(router.state.location.search).toBe("?term=" + caseTermA.toUpperCase());
+  expect(read.mock.calls.every(([id]) => id === caseTermA)).toBe(true);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(await storedRecords()).toEqual(before);
+  view.unmount(); router.dispose();
+});
+
 it("retries the URL's valid nondefault Courses term after its initial read fails", async () => {
   const { a, b, course } = await terms();
   const get = store.getTimetable.bind(store), snapshot = await get(a.id);

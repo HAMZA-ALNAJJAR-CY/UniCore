@@ -10,6 +10,7 @@ import { introductionText } from "../i18n/introduction";
 import { EditorNavigationGuard } from "../components/EditorNavigationGuard";
 import {
   createAcademicStore,
+  canonicalUuid,
   DataError,
   type Course,
   type ScheduleSession,
@@ -347,13 +348,15 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   const location = useLocation();
   const navigate = useNavigate();
   const router = useContext(UNSAFE_DataRouterContext)?.router;
-  const replaceTermQuery = useCallback((termId: string) => {
+  const replaceTermQuery = useCallback((termId?: string) => {
     const activeLocation = router?.state.location;
     if (activeLocation && activeLocation.key !== location.key) return;
     const next = new URLSearchParams(location.search);
-    next.set("term", termId);
+    if (termId === undefined) next.delete("term");
+    else next.set("term", termId);
+    const search = next.toString();
     // Search-only navigation drops the hash. Keep the complete target and state.
-    void navigate({ pathname: location.pathname, search: "?" + next.toString(), hash: location.hash },
+    void navigate({ pathname: location.pathname, search: search ? "?" + search : "", hash: location.hash },
       { replace: true, state: location.state });
   }, [location, navigate, router]);
   // A return to the same history entry is still a new navigation lifetime.
@@ -364,7 +367,12 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   const refreshing = refreshState?.context === refreshContext && refreshState.pending;
   // Invalidate before passive effects or a late promise can apply old results.
   useLayoutEffect(() => () => { refreshOperation.current = null; }, [refreshContext]);
-  const requestedTerm = params.get("term") ?? undefined;
+  let requestedTerm = params.get("term") ?? undefined;
+  try {
+    if (requestedTerm !== undefined) requestedTerm = canonicalUuid(requestedTerm);
+  } catch {
+    // Invalid IDs stay on the existing read/error/retry path; never choose a default here.
+  }
   const [data, setData] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
@@ -388,7 +396,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     const nextLocation = router?.state.location;
     if (!data || busy || refreshing || protectedTermId ||
       loadedContext.current?.store !== store || loadedContext.current.termId !== data.termId ||
-      (requestedTerm && data.termId !== requestedTerm.toLowerCase()) ||
+      (requestedTerm && data.termId !== requestedTerm) ||
       (nextLocation && (nextLocation.key !== location.key || nextLocation.pathname !== location.pathname || nextLocation.search !== location.search || nextLocation.hash !== location.hash)) ||
       (handledCourseTarget.current?.context === refreshContext && handledCourseTarget.current.hash === location.hash)) return;
     let id: string;
@@ -478,7 +486,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
       if (!current()) return;
       setData(snapshot);
       loadedContext.current = { store, termId: snapshot.termId };
-      if (snapshot.termId && snapshot.termId !== requestedTerm)
+      if (snapshot.termId !== requestedTerm)
         replaceTermQuery(snapshot.termId);
     } catch (failure) {
       if (current()) setError(errorText(failure));
