@@ -74,6 +74,192 @@ async function storedRecords() {
   } finally { db.close(); }
 }
 
+function expectUnresolvedCourseActions() {
+  for (const label of [t.retry, t.addCourse, t.editCourse, t.removeCourse, t.addSession, t.editSession, t.removeSession]) {
+    for (const button of screen.queryAllByRole("button", { name: label })) expect(button).toBeDisabled();
+  }
+  const selection = screen.queryByLabelText(t.term);
+  if (selection) expect(selection).toBeDisabled();
+  expect(screen.getByText(t.loading)).toHaveAttribute("role", "status");
+}
+
+it("U-03 locks stale course and session actions while Back resolves an unqualified Courses URL", async () => {
+  const { a, b } = await caseTerms();
+  await store.scheduleSessions.create({ academicTermId: caseTermA, courseId: a.courses[0].id,
+    dayOfWeek: 1, startTime: "09:00", endTime: "10:00", deliveryMode: "in-person" });
+  const before = await storedRecords(), pending = deferred<typeof b>();
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?retained=1#main-content", "/courses?term=" + caseTermA], initialIndex: 1,
+  });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("rowgroup", { name: a.courses[0].name });
+  expect(screen.getByRole("button", { name: t.editSession })).toBeEnabled();
+  const read = vi.spyOn(store, "getTimetable").mockImplementationOnce(() => pending.promise);
+  await act(async () => { await router.navigate(-1); });
+  expect(read).toHaveBeenCalledExactlyOnceWith(undefined);
+  expectUnresolvedCourseActions();
+  fireEvent.click(screen.getByRole("button", { name: t.editCourse }));
+  expect(screen.queryByLabelText(t.name, { exact: true })).not.toBeInTheDocument();
+  await act(async () => pending.resolve(b));
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  expect(screen.getByLabelText(t.term)).toHaveValue(b.termId);
+  expect(screen.getByRole("rowgroup", { name: b.courses[0].name })).toBeInTheDocument();
+  expect(screen.queryByRole("rowgroup", { name: a.courses[0].name })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: t.editCourse })).toBeEnabled();
+  expect(router.state.location.search).toBe("?retained=1&term=" + b.termId);
+  expect(router.state.location.hash).toBe("#main-content");
+  expect(await storedRecords()).toEqual(before);
+  view.unmount(); router.dispose();
+});
+
+it("U-03 clears stale actions after a failed default read and retries the default selection", async () => {
+  const { a, b } = await caseTerms(), before = await storedRecords();
+  const initial = deferred<typeof b>(), retry = deferred<typeof b>();
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?retained=1#main-content", "/courses?term=" + caseTermA], initialIndex: 1,
+  });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("rowgroup", { name: a.courses[0].name });
+  const read = vi.spyOn(store, "getTimetable").mockImplementationOnce(() => initial.promise).mockImplementationOnce(() => retry.promise);
+  await act(async () => { await router.navigate(-1); });
+  expectUnresolvedCourseActions();
+  await act(async () => initial.reject(new DataError("UNAVAILABLE", "Synthetic default read failure")));
+  expect(screen.getByRole("alert")).toHaveTextContent(t.unavailable);
+  expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+  expect(screen.queryByRole("rowgroup", { name: a.courses[0].name })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: t.editCourse })).not.toBeInTheDocument();
+  expect(router.state.location.search).toBe("?retained=1");
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  expectUnresolvedCourseActions();
+  expect(read.mock.calls).toEqual([[undefined], [undefined]]);
+  await act(async () => retry.resolve(b));
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  expect(screen.getByLabelText(t.term)).toHaveValue(b.termId);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(await storedRecords()).toEqual(before);
+  view.unmount(); router.dispose();
+});
+
+it("U-03 enables a resolved default term without waiting for URL canonicalization", async () => {
+  const { b } = await caseTerms(), before = await storedRecords(), pending = deferred<typeof b>();
+  vi.spyOn(store, "getTimetable").mockImplementationOnce(() => pending.promise);
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?retained=1#main-content"],
+  });
+  const view = render(<RouterProvider router={router} />);
+  // Keep the read completion separate from the router's later query replacement.
+  const navigation = vi.spyOn(router, "navigate").mockResolvedValue(undefined);
+  expectUnresolvedCourseActions();
+  await act(async () => pending.resolve(b));
+  expect(navigation).toHaveBeenCalled();
+  expect(router.state.location.search).toBe("?retained=1");
+  expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+  expect(screen.getByLabelText(t.term)).toHaveValue(b.termId);
+  expect(screen.getByRole("button", { name: t.addCourse })).toBeEnabled();
+  expect(screen.getByRole("button", { name: t.editCourse })).toBeEnabled();
+  expect(await storedRecords()).toEqual(before);
+  view.unmount(); router.dispose();
+});
+
+it.each([
+  ["resolve", "pending"], ["reject", "pending"], ["resolve", "resolved"], ["reject", "resolved"],
+] as const)("U-03 ignores a stale default read that %ss while the newest Back/Forward read is %s", async (outcome, phase) => {
+  const { a, b } = await caseTerms(), before = await storedRecords();
+  const older = deferred<typeof b>(), newer = deferred<typeof b>();
+  const get = store.getTimetable.bind(store);
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?retained=1#main-content", "/courses?term=" + caseTermA], initialIndex: 1,
+  });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("rowgroup", { name: a.courses[0].name });
+  let defaultReads = 0;
+  vi.spyOn(store, "getTimetable").mockImplementation(id => id === undefined ? (++defaultReads === 1 ? older.promise : newer.promise) : get(id));
+  await act(async () => { await router.navigate(-1); });
+  expectUnresolvedCourseActions();
+  await act(async () => { await router.navigate(1); });
+  await waitFor(() => expect(screen.getByRole("button", { name: t.editCourse })).toBeEnabled());
+  expect(screen.getByLabelText(t.term)).toHaveValue(a.termId);
+  await act(async () => { await router.navigate(-1); });
+  expect(defaultReads).toBe(2);
+  expectUnresolvedCourseActions();
+  if (phase === "resolved") {
+    await act(async () => newer.resolve(b));
+    await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  }
+  await act(async () => {
+    if (outcome === "resolve") older.resolve(a);
+    else older.reject(new DataError("UNAVAILABLE", "Synthetic stale default failure"));
+  });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  if (phase === "pending") {
+    expectUnresolvedCourseActions();
+    expect(router.state.location.search).toBe("?retained=1");
+    await act(async () => newer.resolve(b));
+  }
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  expect(screen.getByLabelText(t.term)).toHaveValue(b.termId);
+  expect(router.state.location.search).toBe("?retained=1&term=" + b.termId);
+  expect(router.state.location.hash).toBe("#main-content");
+  expect(await storedRecords()).toEqual(before);
+  view.unmount(); router.dispose();
+});
+
+it("U-03 does not focus an old course hash while the unqualified route is unresolved", async () => {
+  const { a, b } = await caseTerms(), before = await storedRecords();
+  const pending = deferred<typeof b>();
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?retained=1#course-" + a.courses[0].id, "/courses?term=" + caseTermA], initialIndex: 1,
+  });
+  const view = render(<RouterProvider router={router} />);
+  const oldCourse = await screen.findByRole("rowgroup", { name: a.courses[0].name });
+  const focus = vi.spyOn(oldCourse, "focus"), scroll = vi.fn();
+  Object.defineProperty(oldCourse, "scrollIntoView", { configurable: true, value: scroll });
+  vi.spyOn(store, "getTimetable").mockImplementationOnce(() => pending.promise);
+  await act(async () => { await router.navigate(-1); });
+  expectUnresolvedCourseActions();
+  expect(focus).not.toHaveBeenCalled();
+  expect(scroll).not.toHaveBeenCalled();
+  await act(async () => pending.resolve(b));
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  expect(focus).not.toHaveBeenCalled();
+  expect(scroll).not.toHaveBeenCalled();
+  expect(router.state.location.hash).toBe("#course-" + a.courses[0].id);
+  expect(screen.getByLabelText(t.term)).toHaveValue(b.termId);
+  expect(await storedRecords()).toEqual(before);
+  view.unmount(); router.dispose();
+});
+
+it.each(["missing", "deleted"] as const)("U-03 does not let an abandoned default read overwrite a newer %s-term error", async kind => {
+  const { a, b } = await caseTerms();
+  let unavailableId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+  if (kind === "deleted") {
+    const term = await store.academicTerms.create({ name: "Removed navigation term", academicYear: "2039/2040", semester: 1 });
+    unavailableId = term.id;
+    await store.academicTerms.delete(term.id, { expectedRevision: term.revision });
+  }
+  const before = await storedRecords(), pending = deferred<typeof b>();
+  const router = createMemoryRouter([{ path: "/courses", element: <Courses store={store} /> }], {
+    initialEntries: ["/courses?retained=1#main-content", "/courses?term=" + caseTermA], initialIndex: 1,
+  });
+  const view = render(<RouterProvider router={router} />);
+  await screen.findByRole("rowgroup", { name: a.courses[0].name });
+  vi.spyOn(store, "getTimetable").mockImplementationOnce(() => pending.promise);
+  await act(async () => { await router.navigate(-1); });
+  expectUnresolvedCourseActions();
+  await act(async () => { await router.navigate("/courses?term=" + unavailableId); });
+  await screen.findByRole("alert");
+  await act(async () => pending.resolve(b));
+  expect(screen.getByRole("alert")).toBeInTheDocument();
+  expect(screen.queryByText(t.loading)).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: t.editCourse })).not.toBeInTheDocument();
+  expect(router.state.location.search).toBe("?term=" + unavailableId);
+  fireEvent.click(screen.getByRole("button", { name: t.retry }));
+  await waitFor(() => expect(screen.getByRole("button", { name: t.retry })).toBeEnabled());
+  expect(screen.getByLabelText(t.term)).toHaveValue(b.termId);
+  expect(await storedRecords()).toEqual(before);
+  view.unmount(); router.dispose();
+});
+
 it.each([
   ["lowercase", caseTermA], ["uppercase", caseTermA.toUpperCase()], ["mixed-case", mixedCaseTermA],
 ])("resolves a delayed %s Courses term deep link and its reload without writes", async (_label, requested) => {

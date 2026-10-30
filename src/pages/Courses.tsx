@@ -373,7 +373,8 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   } catch {
     // Invalid IDs stay on the existing read/error/retry path; never choose a default here.
   }
-  const [data, setData] = useState<Snapshot | null>(null);
+  const [loaded, setLoaded] = useState<{ snapshot: Snapshot; request: typeof refreshContext } | null>(null);
+  const data = loaded?.snapshot ?? null;
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -391,10 +392,14 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
   useEffect(() => () => { writeOperation.current = null; }, [store]);
   const protectedTermId = editor ? editorTermId : removal?.record.academicTermId ?? recoveryTermId;
   const loadedContext = useRef<{ store: Store; termId: string | undefined } | null>(null);
+  // A default selection belongs to this navigation, not the previous term snapshot.
+  const transitioning = !protectedTermId && data !== null && (requestedTerm === undefined
+    ? loaded?.request !== refreshContext
+    : requestedTerm !== data.termId);
   const handledCourseTarget = useRef<{ context: typeof refreshContext; hash: string } | null>(null);
   useEffect(() => {
     const nextLocation = router?.state.location;
-    if (!data || busy || refreshing || protectedTermId ||
+    if (!data || busy || refreshing || transitioning || protectedTermId ||
       loadedContext.current?.store !== store || loadedContext.current.termId !== data.termId ||
       (requestedTerm && data.termId !== requestedTerm) ||
       (nextLocation && (nextLocation.key !== location.key || nextLocation.pathname !== location.pathname || nextLocation.search !== location.search || nextLocation.hash !== location.hash)) ||
@@ -409,7 +414,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     handledCourseTarget.current = { context: refreshContext, hash: location.hash };
     target.focus({ preventScroll: true });
     target.scrollIntoView({ block: "start" });
-  }, [data, busy, refreshing, protectedTermId, requestedTerm, router, location, refreshContext, view, store]);
+  }, [data, busy, refreshing, transitioning, protectedTermId, requestedTerm, router, location, refreshContext, view, store]);
   useEffect(() => {
     if (!protectedTermId) return;
     const guard = (event: MouseEvent) => {
@@ -434,15 +439,20 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
       setParams(current => { current.set("term", protectedTermId); return current; }, { replace: true });
       return;
     }
-    if (loadedContext.current?.store === store && loadedContext.current.termId === requestedTerm) return;
+    if (requestedTerm !== undefined && loadedContext.current?.store === store && loadedContext.current.termId === requestedTerm) return;
     let active = true;
+    const current = () => {
+      const activeLocation = router?.state.location;
+      return active && (!activeLocation ||
+        (activeLocation.key === refreshContext.key && activeLocation.pathname === refreshContext.pathname && activeLocation.search === refreshContext.search));
+    };
     store
       .getTimetable(requestedTerm)
       .then((snapshot) => {
-        if (active) {
+        if (current()) {
           setError("");
           loadedContext.current = { store, termId: snapshot.termId };
-          setData(snapshot);
+          setLoaded({ snapshot, request: refreshContext });
           // Finish this read before URL replacement invalidates its effect.
           setBusy(false);
           if (!requestedTerm && snapshot.termId)
@@ -450,9 +460,9 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
         }
       })
       .catch((failure) => {
-        if (active) {
+        if (current()) {
           loadedContext.current = null;
-          setData(null);
+          setLoaded(null);
           setError(errorText(failure));
           setBusy(false);
         }
@@ -460,7 +470,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
     return () => {
       active = false;
     };
-  }, [store, requestedTerm, protectedTermId, setParams, replaceTermQuery]);
+  }, [store, requestedTerm, protectedTermId, setParams, replaceTermQuery, router, refreshContext]);
 
   async function load(termId = requestedTerm ?? data?.termId, recoverInvalidTerm = true) {
     const operation = Symbol("course refresh");
@@ -484,7 +494,7 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
         throw failure;
       });
       if (!current()) return;
-      setData(snapshot);
+      setLoaded({ snapshot, request: refreshContext });
       loadedContext.current = { store, termId: snapshot.termId };
       if (snapshot.termId !== requestedTerm)
         replaceTermQuery(snapshot.termId);
@@ -533,12 +543,12 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
       try {
         const snapshot = await store.getTimetable(termId);
         if (current()) {
-          setData(snapshot);
+          setLoaded({ snapshot, request: refreshContext });
           loadedContext.current = { store, termId: snapshot.termId };
         }
       } catch (failure) {
         if (current()) {
-          setData(null);
+          setLoaded(null);
           loadedContext.current = null;
           setError(errorText(failure));
         }
@@ -584,7 +594,6 @@ export function Courses({ store = defaultStore }: { store?: Store }) {
       setBusy(false);
     }
   }
-  const transitioning = !protectedTermId && data !== null && requestedTerm !== undefined && requestedTerm !== data.termId;
   const locked = busy || refreshing || transitioning || !!editor || !!removal || recoveryOpen;
   const courses = data?.courses ?? [];
   const sessions = ordered(data?.sessions ?? []);
