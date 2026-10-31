@@ -1,3 +1,6 @@
+import "fake-indexeddb/auto";
+import Dexie from "dexie";
+import { Blob as NodeBlob, File as NodeFile } from "node:buffer";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
@@ -31,6 +34,249 @@ function view(f: ReturnType<typeof fixture>, path = "/lectures?course=course-a&t
   return { router, ...render(<RouterProvider router={router} />) };
 }
 afterEach(() => { setLanguage("ar"); localStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+describe("U-04 lecture navigation ownership", () => {
+  it("keeps selected files and the workspace until Back is explicitly confirmed", async () => {
+    const f = fixture(), path = "/lectures?course=course-a&term=term-a&lecture=lecture-a";
+    const { router } = view(f, path, { initialEntries: ["/lectures?course=course-a&term=term-a", path], initialIndex: 1 });
+    const file = new File(["Synthetic pending notes"], "pending.txt", { type: "text/plain" });
+    fireEvent.change(await screen.findByLabelText("Choose multiple files"), { target: { files: [file] } });
+    expect(f.upload).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Back to lectures" }));
+    expect(screen.getByRole("button", { name: "Discard draft and leave" })).toBeEnabled();
+    expect(screen.getByText(file.name)).toBeInTheDocument();
+    expect(screen.getByLabelText("Lecture notes")).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(router.state.location.search).toContain("lecture=lecture-a");
+    await act(async () => { void router.navigate(-1); });
+    expect(screen.getByRole("button", { name: "Discard draft and leave" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByText(file.name)).toBeInTheDocument();
+    const upload = vi.spyOn(f.store, "attachLectureFiles").mockImplementation(async (_id, inputs) => inputs.map(input => ({ id: input.id, status: "saved" })));
+    fireEvent.click(screen.getByRole("button", { name: "Save selected files" }));
+    await screen.findByText(/B · Saved$/);
+    expect(upload).toHaveBeenCalledOnce();
+    expect(upload.mock.calls[0][0]).toBe(lecture.id);
+    expect(upload.mock.calls[0][1][0].blob).toBe(file);
+    expect(f.remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps a blocked workspace open request from leaving the lecture list permanently Loading", async () => {
+    const f = fixture(); const { router } = view(f, "/lectures?course=course-a&term=term-a");
+    fireEvent.click(await screen.findByRole("button", { name: "Create lecture" }));
+    fireEvent.input(screen.getByLabelText("Lecture date"), { target: { value: "2032-04-06" } });
+    fireEvent.click(screen.getByRole("button", { name: "Open attachments" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Keep editing" }));
+    expect(router.state.location.search).not.toContain("lecture=");
+    expect(screen.getByLabelText("Lecture date")).toHaveValue("2032-04-06");
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open attachments" })).toBeEnabled();
+    expect(f.read).toHaveBeenCalledOnce();
+    expect(f.create).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Open attachments" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft and leave" }));
+    await screen.findByLabelText("Lecture notes");
+    expect(router.state.location.search).toContain("lecture=lecture-a");
+  });
+
+  it("preserves notes and pending files when history navigation is canceled and discards only after confirmation", async () => {
+    const f = fixture(), path = "/lectures?course=course-a&term=term-a&lecture=lecture-a";
+    const { router } = view(f, path, { initialEntries: ["/lectures?course=course-a&term=term-a", path], initialIndex: 1 });
+    const file = new File(["Synthetic draft"], "unsaved.txt", { type: "text/plain" });
+    fireEvent.change(await screen.findByLabelText("Choose multiple files"), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText("Lecture notes"), { target: { value: "  Exact draft\nملاحظات  " } });
+    const unload = new Event("beforeunload", { cancelable: true }); fireEvent(window, unload);
+    expect(unload.defaultPrevented).toBe(true);
+    await act(async () => { void router.navigate(-1); });
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByLabelText("Lecture notes")).toHaveValue("  Exact draft\nملاحظات  ");
+    expect(screen.getByText(file.name)).toBeInTheDocument();
+    expect(f.upload).not.toHaveBeenCalled(); expect(f.update).not.toHaveBeenCalled();
+    await act(async () => { void router.navigate(-1); });
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft and leave" }));
+    await screen.findByRole("button", { name: "Open attachments" });
+    expect(screen.queryByText(file.name)).not.toBeInTheDocument();
+    await act(async () => { await router.navigate(1); });
+    expect(await screen.findByLabelText("Lecture notes")).toHaveValue("");
+    expect(screen.queryByText(file.name)).not.toBeInTheDocument();
+    const clean = new Event("beforeunload", { cancelable: true }); fireEvent(window, clean);
+    expect(clean.defaultPrevented).toBe(false);
+    expect(f.upload).not.toHaveBeenCalled(); expect(f.update).not.toHaveBeenCalled(); expect(f.remove).not.toHaveBeenCalled();
+  });
+
+  it("blocks departure during an upload and never completes an old Back attempt after persistence", async () => {
+    const f = fixture(); const path = "/lectures?course=course-a&term=term-a&lecture=lecture-a";
+    const pending = deferred<Awaited<ReturnType<typeof f.store.attachLectureFiles>>>();
+    const upload = vi.spyOn(f.store, "attachLectureFiles").mockReturnValueOnce(pending.promise);
+    const { router } = view(f, path, { initialEntries: ["/lectures?course=course-a&term=term-a", path], initialIndex: 1 });
+    fireEvent.change(await screen.findByLabelText("Choose multiple files"), { target: { files: [new File(["Pending upload"], "upload.txt", { type: "text/plain" })] } });
+    fireEvent.click(screen.getByRole("button", { name: "Save selected files" }));
+    expect(screen.getByRole("button", { name: "Back to lectures" })).toBeDisabled();
+    expect(screen.queryByText(/B · Saved$/)).not.toBeInTheDocument();
+    await act(async () => { void router.navigate(-1); });
+    expect(screen.getByRole("button", { name: "Discard draft and leave" })).toBeDisabled();
+    const id = upload.mock.calls[0][1][0].id;
+    await act(async () => pending.resolve([{ id, status: "saved" }]));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Back to lectures" })).toBeEnabled());
+    expect(router.state.location.search).toContain("lecture=lecture-a");
+    expect(screen.queryByRole("button", { name: "Discard draft and leave" })).not.toBeInTheDocument();
+    expect(screen.getByText(/B · Saved$/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to lectures" }));
+    await screen.findByRole("button", { name: "Open attachments" });
+    expect(f.remove).not.toHaveBeenCalled();
+  });
+
+  it.each(["resolve", "reject"] as const)("ignores an abandoned read that %ss through rapid lecture Back/Forward", async outcome => {
+    const f = fixture(), older = deferred<Awaited<ReturnType<typeof f.read>>>(), newer = deferred<Awaited<ReturnType<typeof f.read>>>();
+    const second = { ...lecture, id: "lecture-b", notes: "Second lecture notes" };
+    const firstValue = { courses: [course], sessions: [], lectures: [lecture, second], lecture, files: [] };
+    f.read.mockImplementation(async id => ({ ...firstValue, lecture: id === second.id ? second : id ? lecture : undefined }));
+    f.read.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+    const path = "/lectures?course=course-a&term=term-a&lecture=lecture-a";
+    const { router } = view(f, path, { initialEntries: [path, "/lectures?course=course-a&term=term-a&lecture=lecture-b"], initialIndex: 0 });
+    await act(async () => { await router.navigate(1); });
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    await act(async () => {
+      if (outcome === "resolve") older.resolve(firstValue);
+      else older.reject(new DataError("UNAVAILABLE", "Synthetic abandoned read"));
+    });
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await act(async () => newer.resolve({ ...firstValue, lecture: second }));
+    expect(await screen.findByLabelText("Lecture notes")).toHaveValue(second.notes);
+    await act(async () => { await router.navigate(-1); });
+    expect(await screen.findByLabelText("Lecture notes")).toHaveValue("");
+    await act(async () => { await router.navigate(1); });
+    expect(await screen.findByLabelText("Lecture notes")).toHaveValue(second.notes);
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    expect(f.upload).not.toHaveBeenCalled(); expect(f.update).not.toHaveBeenCalled(); expect(f.remove).not.toHaveBeenCalled();
+  });
+
+  it("retains pending file identity through a workspace read failure and retry", async () => {
+    const f = fixture(); view(f);
+    const file = new File(["Retry bytes"], "retry.txt", { type: "text/plain" });
+    fireEvent.change(await screen.findByLabelText("Choose multiple files"), { target: { files: [file] } });
+    f.read.mockRejectedValueOnce(new DataError("UNAVAILABLE", "Synthetic read failure"));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await screen.findByRole("alert");
+    expect(f.upload).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await screen.findByText(file.name);
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    const upload = vi.spyOn(f.store, "attachLectureFiles").mockImplementationOnce(async (_id, inputs) => inputs.map(input => ({ id: input.id, status: "failed", code: "QUOTA" })))
+      .mockImplementationOnce(async (_id, inputs) => inputs.map(input => ({ id: input.id, status: "saved" })));
+    fireEvent.click(screen.getByRole("button", { name: "Save selected files" }));
+    await screen.findByRole("button", { name: "Retry unsaved files" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry unsaved files" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Retry unsaved files" }));
+    await screen.findByText(/B · Saved$/);
+    expect(upload.mock.calls[1]).toEqual(upload.mock.calls[0]);
+    expect(upload.mock.calls[1][1][0].blob).toBe(file);
+    expect(f.remove).not.toHaveBeenCalled();
+  });
+
+  it("blocks unguarded local Back while files are pending", async () => {
+    setLanguage("en"); const f = fixture(); render(<Lectures store={f.store} />);
+    fireEvent.click((await screen.findAllByRole("button", { name: "Open attachments" }))[0]);
+    fireEvent.change(await screen.findByLabelText("Choose multiple files"), { target: { files: [new File(["Local bytes"], "local.txt", { type: "text/plain" })] } });
+    expect(screen.getByRole("button", { name: "Back to lectures" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Back to lectures" }));
+    expect(screen.getByText("local.txt")).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    expect(f.upload).not.toHaveBeenCalled();
+  });
+
+  it.each(["missing", "deleted", "invalid"] as const)("terminates Loading for a %s lecture link and permits retry or Back without writes", async kind => {
+    const name = "u04-route-" + crypto.randomUUID(), real = createAcademicStore(name);
+    let cleanup: (() => void) | undefined;
+    try {
+      const term = await real.academicTerms.create({ name: "Synthetic route term", academicYear: "2044/2045", semester: 1 });
+      const parent = await real.courses.create({ academicTermId: term.id, name: "Synthetic route course", code: "ROUTE", registeredHours: 1 });
+      const saved = await real.lectures.create({ courseId: parent.id, date: "2044-10-10", notes: "Preserved route notes" });
+      if (kind === "deleted") await real.lectures.delete(saved.id, { expectedRevision: saved.revision });
+      const before = await real.lectures.get(saved.id, { includeDeleted: true });
+      const requestedId = kind === "invalid" ? "not-a-uuid" : kind === "deleted" ? saved.id : crypto.randomUUID();
+      const path = `/lectures?course=${parent.id}&term=${term.id}&lecture=${requestedId}`;
+      const read = vi.spyOn(real, "getLectureWorkspace");
+      const f = fixture(); f.store = real;
+      const active = view(f, path); cleanup = () => { active.unmount(); active.router.dispose(); };
+      await screen.findByRole("alert");
+      expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Lecture notes")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Choose multiple files")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+      await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled());
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+      expect(read.mock.calls).toEqual([[requestedId], [requestedId]]);
+      expect(active.router.state.location.search).toContain("lecture=" + requestedId);
+      fireEvent.click(screen.getByRole("button", { name: "Back to lectures" }));
+      if (kind === "deleted") await screen.findByText("No saved lectures.");
+      else await screen.findByRole("button", { name: "Open attachments" });
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+      expect(active.router.state.location.search).not.toContain("lecture=");
+      expect(await real.lectures.get(saved.id, { includeDeleted: true })).toEqual(before);
+      expect(await real.courses.get(parent.id)).toEqual(parent);
+      expect(await real.lectureFiles.list()).toHaveLength(0);
+    } finally { cleanup?.(); real.close(); await Dexie.delete(name); }
+  });
+
+  it("preserves real persisted notes and Blob bytes across canceled Back, upload, discard and remount", async () => {
+    // Node Blobs retain their bytes through fake-indexeddb's native structured clone.
+    vi.stubGlobal("Blob", NodeBlob); vi.stubGlobal("File", NodeFile);
+    const name = "u04-workspace-" + crypto.randomUUID(), real = createAcademicStore(name);
+    let unmount: (() => void) | undefined;
+    try {
+      const term = await real.academicTerms.create({ name: "Synthetic workspace term", academicYear: "2043/2044", semester: 1 });
+      const parent = await real.courses.create({ academicTermId: term.id, name: "Synthetic workspace course", code: "U04", registeredHours: 2 });
+      const saved = await real.lectures.create({ courseId: parent.id, date: "2043-10-10", notes: "Original persisted notes" });
+      const originalId = crypto.randomUUID();
+      await real.attachLectureFiles(saved.id, [{ id: originalId, fileName: "original.txt", blob: new Blob([new Uint8Array([0, 128, 255])], { type: "text/plain" }) }]);
+      const original = await real.lectureFiles.get(originalId);
+      const path = `/lectures?course=${parent.id}&term=${term.id}&lecture=${saved.id}`;
+      const f = fixture(); f.store = real;
+      const first = view(f, path, { initialEntries: [`/lectures?course=${parent.id}&term=${term.id}`, path], initialIndex: 1 });
+      unmount = first.unmount;
+      fireEvent.change(await screen.findByLabelText("Choose multiple files"), { target: { files: [new File(["Confirmed file bytes"], "confirmed.txt", { type: "text/plain" })] } });
+      expect(await real.lectureFiles.list()).toHaveLength(1);
+      fireEvent.change(screen.getByLabelText("Lecture notes"), { target: { value: "Confirmed local notes" } });
+      await act(async () => { void first.router.navigate(-1); });
+      fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+      expect(await real.lectures.get(saved.id)).toEqual(saved);
+      expect(await real.lectureFiles.list()).toHaveLength(1);
+      fireEvent.click(screen.getByRole("button", { name: "Save notes" }));
+      await screen.findByText("Notes saved locally.");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Save selected files" })).toBeEnabled());
+      fireEvent.click(screen.getByRole("button", { name: "Save selected files" }));
+      await screen.findByText(/B · Saved$/);
+      await waitFor(() => expect(screen.getByRole("button", { name: "Back to lectures" })).toBeEnabled());
+      const files = await real.lectureFiles.list();
+      expect(files).toHaveLength(2);
+      const attached = files.find(file => file.fileName === "confirmed.txt")!;
+      expect(new TextDecoder().decode(await attached.blob.arrayBuffer())).toBe("Confirmed file bytes");
+      fireEvent.change(screen.getByLabelText("Choose multiple files"), { target: { files: [new File(["Never saved"], "discarded.txt", { type: "text/plain" })] } });
+      fireEvent.click(screen.getByRole("button", { name: "Back to lectures" }));
+      fireEvent.click(screen.getByRole("button", { name: "Discard draft and leave" }));
+      await screen.findByRole("button", { name: "Open attachments" });
+      first.unmount(); first.router.dispose();
+      const second = view(f, path); unmount = second.unmount;
+      expect(await screen.findByLabelText("Lecture notes")).toHaveValue("Confirmed local notes");
+      expect(screen.getByText("confirmed.txt")).toBeInTheDocument();
+      expect(screen.queryByText("discarded.txt")).not.toBeInTheDocument();
+      expect((await real.lectures.get(saved.id))?.revision).toBe(2);
+      const retained = await real.lectureFiles.get(originalId);
+      expect(retained).toEqual(original);
+      expect(new Uint8Array(await retained!.blob.arrayBuffer())).toEqual(new Uint8Array([0, 128, 255]));
+      expect((await real.lectureFiles.get(attached.id))?.revision).toBe(attached.revision);
+      expect(await real.lectureFiles.list()).toHaveLength(2);
+      second.unmount(); second.router.dispose(); unmount = undefined;
+    } finally { unmount?.(); real.close(); await Dexie.delete(name); }
+  });
+});
 
 describe("stable lecture identity during hash navigation", () => {
   const path = "/lectures?course=course-a&term=term-a&lecture=lecture-a";

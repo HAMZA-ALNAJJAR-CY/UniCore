@@ -274,8 +274,11 @@ function LectureWorkspace({ store, route }: { store: Store; route?: RouteSelecti
         </button>
         {opened ? (
           <button
-            disabled={disabled}
+            disabled={disabled || (!route && selectedPending)}
             onClick={() => {
+              // The guard owns routed departure. Only a committed identity change
+              // may remount the workspace and discard its local selections.
+              if (route) { route.open(undefined); return; }
               setLoading(true);
               setOpened(undefined);
               setSelected([]);
@@ -388,9 +391,8 @@ function LectureWorkspace({ store, route }: { store: Store; route?: RouteSelecti
                 <button
                   disabled={disabled}
                   onClick={() => {
-                    setLoading(true);
+                    if (!route) { setLoading(true); setSuccess(false); }
                     setOpened(lecture.id);
-                    setSuccess(false);
                   }}
                 >
                   {t.open}
